@@ -7,8 +7,8 @@ pub enum LoxError {
     },
     Lex {
         message: String,
-        offset: isize,
-        length: isize,
+        offset: usize,
+        length: usize,
     },
 }
 

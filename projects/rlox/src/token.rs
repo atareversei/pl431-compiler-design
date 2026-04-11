@@ -1,36 +1,30 @@
 use std::fmt;
 
 #[derive(Debug)]
-pub struct Token<'a> {
+pub struct Token {
     token_type: TokenType,
-    lexeme: &'a str,
     offset: usize,
     length: usize,
 }
 
-impl<'a> Token<'a> {
-    pub fn new(token_type: TokenType, lexeme: &'a str, offset: usize, length: usize) -> Self {
+impl Token {
+    pub fn new(token_type: TokenType, offset: usize, length: usize) -> Self {
         Token {
             token_type,
-            lexeme,
             offset,
             length,
         }
     }
 }
 
-impl fmt::Display for Token<'_> {
+impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{} {} {}:{}",
-            self.token_type, self.lexeme, self.offset, self.length
-        )
+        write!(f, "{} {}:{}", self.token_type, self.offset, self.length)
     }
 }
 
 /// TokenType defines all the tokens of RLox.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenType {
     // Single-character tokens.
     LParen,
@@ -59,9 +53,9 @@ pub enum TokenType {
     LessEqual,
 
     // Literals.
-    Identifier(String),
-    String(String),
-    Number(f64),
+    Identifier,
+    String,
+    Number,
 
     // Keywords.
     And,
@@ -86,9 +80,6 @@ pub enum TokenType {
 impl fmt::Display for TokenType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TokenType::Identifier(value) => write!(f, "Identifier({})", value),
-            TokenType::String(value) => write!(f, "String({})", value),
-            TokenType::Number(value) => write!(f, "Number({})", value),
             _ => write!(f, "{:?}", self),
         }
     }

@@ -7,7 +7,7 @@ use std::process;
 
 fn main() {
     if let Err(err) = lox::run() {
-        eprintln!("Error: {}", err);
+        err.iter().for_each(|e| eprintln!("Error: {}", e));
         process::exit(1);
     }
 }
