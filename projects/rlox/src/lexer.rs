@@ -123,15 +123,6 @@ impl<'a> Lexer<'a> {
         self.source.as_bytes()[self.current + 1] as char
     }
 
-    fn expect_cur(&mut self, expected: char) -> bool {
-        if self.source.as_bytes()[self.current] as char != expected {
-            return false;
-        }
-
-        self.current += 1;
-        true
-    }
-
     fn go_together(&mut self, expected: char, together: TT, first_to_go: TT) -> Token {
         if self.is_at_end() {
             return self.new_token(first_to_go);
@@ -180,7 +171,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn string(&mut self) -> Result<Option<Token>, LoxError> {
-        while self.peek() != '"' || !self.is_at_end() {
+        while !self.is_at_end() && self.peek() != '"' {
             self.advance();
         }
 
@@ -324,13 +315,56 @@ mod tests {
 
         let mut lexer = Lexer::new(src);
         let lex_result = lexer.lex_tokens();
-
-        for t in &lex_result.tokens {
-            println!("{}", t);
-        }
-
         assert!(!lex_result.has_errors(), "lexing result must be errorless");
-
         assert_eq!(lex_result.tokens, vec![Token::new(TT::Eof, 322, 0),]);
+    }
+
+    #[test]
+    fn strings() {
+        let src = "\
+        name = \"lox\"
+        "
+        .trim();
+
+        let mut lexer = Lexer::new(src);
+        let lex_result = lexer.lex_tokens();
+        assert!(!lex_result.has_errors(), "lexing result must be errorless");
+        assert_eq!(
+            lex_result.tokens,
+            vec![
+                Token::new(TT::Identifier, 0, 4),
+                Token::new(TT::Equal, 5, 1),
+                Token::new(TT::String, 7, 5),
+                Token::new(TT::Eof, 12, 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn unterminated_strings() {
+        let src = "\
+        name = \"lox
+        "
+        .trim();
+
+        let mut lexer = Lexer::new(src);
+        let lex_result = lexer.lex_tokens();
+        assert!(lex_result.has_errors(), "lexing result must have an error");
+        assert_eq!(
+            lex_result.errors,
+            vec![LoxError::Lex {
+                message: String::from("unterminated string"),
+                offset: 7,
+                length: 4
+            },]
+        );
+        assert_eq!(
+            lex_result.tokens,
+            vec![
+                Token::new(TT::Identifier, 0, 4),
+                Token::new(TT::Equal, 5, 1),
+                Token::new(TT::Eof, 11, 0),
+            ]
+        );
     }
 }

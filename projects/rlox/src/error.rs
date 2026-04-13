@@ -1,6 +1,7 @@
 use std::fmt;
 use std::io;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoxError {
     Scan {
         message: String,
@@ -20,7 +21,7 @@ impl fmt::Display for LoxError {
                 message,
                 offset,
                 length,
-            } => write!(f, "{}", message),
+            } => write!(f, "{} {}:{}", message, offset, length),
         }
     }
 }
