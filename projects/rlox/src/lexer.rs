@@ -136,17 +136,42 @@ impl<'a> Lexer<'a> {
         if self.is_at_end() {
             return self.new_token(first_to_go);
         }
-        if self.expect_cur(expected) {
-            return self.new_token(first_to_go);
+        if self.peek() == expected {
+            self.advance();
+            return self.new_token(together);
         }
 
-        self.new_token(together)
+        self.new_token(first_to_go)
     }
 
     fn comment(&mut self) -> Result<Option<Token>, LoxError> {
-        if self.expect_cur('/') {
+        if self.peek() == '/' {
+            self.advance();
             while self.peek() != '\n' && !self.is_at_end() {
                 self.advance();
+            }
+            Ok(None)
+        } else if self.peek() == '*' {
+            self.advance();
+            let mut depth = 0;
+            let mut c: char;
+            while !self.is_at_end() && depth >= 0 {
+                c = self.advance();
+                match c {
+                    '/' => {
+                        if self.peek() == '*' {
+                            self.advance();
+                            depth += 1;
+                        }
+                    }
+                    '*' => {
+                        if self.peek() == '/' {
+                            self.advance();
+                            depth -= 1;
+                        }
+                    }
+                    _ => {}
+                }
             }
             Ok(None)
         } else {
@@ -229,5 +254,83 @@ impl<'a> Lexer<'a> {
 
     fn is_alpha_numeric(&self, c: char) -> bool {
         self.is_digit(c) || self.is_alpha(c)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn arithmetic() {
+        let src = "\
+        12+43.1=55.1
+        2.1*6=12.6
+        3/1=3
+        0-1=-1
+        "
+        .trim();
+
+        let mut lexer = Lexer::new(src);
+        let lex_result = lexer.lex_tokens();
+
+        assert!(!lex_result.has_errors(), "lexing result must be errorless");
+
+        assert_eq!(
+            lex_result.tokens,
+            vec![
+                Token::new(TT::Number, 0, 2),
+                Token::new(TT::Plus, 2, 1),
+                Token::new(TT::Number, 3, 4),
+                Token::new(TT::Equal, 7, 1),
+                Token::new(TT::Number, 8, 4),
+                Token::new(TT::Number, 21, 3),
+                Token::new(TT::Star, 24, 1),
+                Token::new(TT::Number, 25, 1),
+                Token::new(TT::Equal, 26, 1),
+                Token::new(TT::Number, 27, 4),
+                Token::new(TT::Number, 40, 1),
+                Token::new(TT::Slash, 41, 1),
+                Token::new(TT::Number, 42, 1),
+                Token::new(TT::Equal, 43, 1),
+                Token::new(TT::Number, 44, 1),
+                Token::new(TT::Number, 54, 1),
+                Token::new(TT::Minus, 55, 1),
+                Token::new(TT::Number, 56, 1),
+                Token::new(TT::Equal, 57, 1),
+                Token::new(TT::Minus, 58, 1),
+                Token::new(TT::Number, 59, 1),
+                Token::new(TT::Eof, 60, 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn comments() {
+        let src = "\
+        //                      single-line comment
+        /// // /**/ a = 12      slightly complex single-line comment
+        /*                      multi-line comment
+        */
+        /*
+            /*
+                /*
+                                nested multi-line comment
+                */
+            */
+        */
+        "
+        .trim();
+
+        let mut lexer = Lexer::new(src);
+        let lex_result = lexer.lex_tokens();
+
+        for t in &lex_result.tokens {
+            println!("{}", t);
+        }
+
+        assert!(!lex_result.has_errors(), "lexing result must be errorless");
+
+        assert_eq!(lex_result.tokens, vec![Token::new(TT::Eof, 322, 0),]);
     }
 }
