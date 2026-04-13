@@ -3,8 +3,16 @@ use crate::token::{Token, TokenType as TT};
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
+// TODO:
+// 1. binary literals      e.g. 0b110101
+// 2. hex literals         e.g. 0xFF
+// 3. unicode identifiers  e.g. café
+// 4. string interpolation e.g. "The total is: ${a + b}"
+// 5. escape sequences     e.g. "tab:\t quote: \" unicode: \u03A9"
+
 static KEYWORDS: LazyLock<HashMap<&'static str, TT>> = LazyLock::new(|| {
     let mut m = HashMap::new();
+    m.insert("import", TT::Import);
     m.insert("and", TT::And);
     m.insert("class", TT::Class);
     m.insert("else", TT::Else);
@@ -137,37 +145,45 @@ impl<'a> Lexer<'a> {
 
     fn comment(&mut self) -> Result<Option<Token>, LoxError> {
         if self.peek() == '/' {
-            self.advance();
-            while self.peek() != '\n' && !self.is_at_end() {
-                self.advance();
-            }
-            Ok(None)
+            self.single_line_comment()
         } else if self.peek() == '*' {
-            self.advance();
-            let mut depth = 0;
-            let mut c: char;
-            while !self.is_at_end() && depth >= 0 {
-                c = self.advance();
-                match c {
-                    '/' => {
-                        if self.peek() == '*' {
-                            self.advance();
-                            depth += 1;
-                        }
-                    }
-                    '*' => {
-                        if self.peek() == '/' {
-                            self.advance();
-                            depth -= 1;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            Ok(None)
+            self.multi_line_comment()
         } else {
             Ok(Some(self.new_token(TT::Slash)))
         }
+    }
+
+    fn single_line_comment(&mut self) -> Result<Option<Token>, LoxError> {
+        self.advance();
+        while self.peek() != '\n' && !self.is_at_end() {
+            self.advance();
+        }
+        Ok(None)
+    }
+
+    fn multi_line_comment(&mut self) -> Result<Option<Token>, LoxError> {
+        self.advance();
+        let mut depth = 0;
+        let mut c: char;
+        while !self.is_at_end() && depth >= 0 {
+            c = self.advance();
+            match c {
+                '/' => {
+                    if self.peek() == '*' {
+                        self.advance();
+                        depth += 1;
+                    }
+                }
+                '*' => {
+                    if self.peek() == '/' {
+                        self.advance();
+                        depth -= 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(None)
     }
 
     fn string(&mut self) -> Result<Option<Token>, LoxError> {
@@ -364,6 +380,158 @@ mod tests {
                 Token::new(TT::Identifier, 0, 4),
                 Token::new(TT::Equal, 5, 1),
                 Token::new(TT::Eof, 11, 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn comparisons() {
+        let src = "\
+        12>99
+        1>=1
+        \"\"==\"\"
+        0.0<7
+        3<=4
+        "
+        .trim();
+
+        let mut lexer = Lexer::new(src);
+        let lex_result = lexer.lex_tokens();
+
+        assert!(!lex_result.has_errors(), "lexing result must be errorless");
+        assert_eq!(
+            lex_result.tokens,
+            vec![
+                Token::new(TT::Number, 0, 2),
+                Token::new(TT::Greater, 2, 1),
+                Token::new(TT::Number, 3, 2),
+                Token::new(TT::Number, 14, 1),
+                Token::new(TT::GreaterEqual, 15, 2),
+                Token::new(TT::Number, 17, 1),
+                Token::new(TT::String, 27, 2),
+                Token::new(TT::EqualEqual, 29, 2),
+                Token::new(TT::String, 31, 2),
+                Token::new(TT::Number, 42, 3),
+                Token::new(TT::Less, 45, 1),
+                Token::new(TT::Number, 46, 1),
+                Token::new(TT::Number, 56, 1),
+                Token::new(TT::LessEqual, 57, 2),
+                Token::new(TT::Number, 59, 1),
+                Token::new(TT::Eof, 60, 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn simple_program() {
+        let src = "\
+        import \"./a.lox\"
+        
+        /*
+            status shows the overall condition of the program
+        */
+        var status
+        func sum(a, b) {
+            return a + b
+        }
+
+        // set status if sum function is not working correctly
+        if (sum(5,6) != 11 or false {
+            status = \"panic\"
+        }
+
+        class system {
+            func exit(){/*TODO*/}
+        }
+        system.exit()
+        "
+        .trim();
+
+        let mut lexer = Lexer::new(src);
+        let lex_result = lexer.lex_tokens();
+
+        assert!(!lex_result.has_errors(), "lexing result must be errorless");
+        assert_eq!(
+            lex_result.tokens,
+            vec![
+                Token::new(TT::Import, 0, 6),
+                Token::new(TT::String, 7, 9),
+                Token::new(TT::Var, 118, 3),
+                Token::new(TT::Identifier, 122, 6),
+                Token::new(TT::Func, 137, 4),
+                Token::new(TT::Identifier, 142, 3),
+                Token::new(TT::LParen, 145, 1),
+                Token::new(TT::Identifier, 146, 1),
+                Token::new(TT::Comma, 147, 1),
+                Token::new(TT::Identifier, 149, 1),
+                Token::new(TT::RParen, 150, 1),
+                Token::new(TT::LBrace, 152, 1),
+                Token::new(TT::Return, 166, 6),
+                Token::new(TT::Identifier, 173, 1),
+                Token::new(TT::Plus, 175, 1),
+                Token::new(TT::Identifier, 177, 1),
+                Token::new(TT::RBrace, 187, 1),
+                Token::new(TT::If, 261, 2),
+                Token::new(TT::LParen, 264, 1),
+                Token::new(TT::Identifier, 265, 3),
+                Token::new(TT::LParen, 268, 1),
+                Token::new(TT::Number, 269, 1),
+                Token::new(TT::Comma, 270, 1),
+                Token::new(TT::Number, 271, 1),
+                Token::new(TT::RParen, 272, 1),
+                Token::new(TT::BangEqual, 274, 2),
+                Token::new(TT::Number, 277, 2),
+                Token::new(TT::Or, 280, 2),
+                Token::new(TT::False, 283, 5),
+                Token::new(TT::LBrace, 289, 1),
+                Token::new(TT::Identifier, 303, 6),
+                Token::new(TT::Equal, 310, 1),
+                Token::new(TT::String, 312, 7),
+                Token::new(TT::RBrace, 328, 1),
+                Token::new(TT::Class, 339, 5),
+                Token::new(TT::Identifier, 345, 6),
+                Token::new(TT::LBrace, 352, 1),
+                Token::new(TT::Func, 366, 4),
+                Token::new(TT::Identifier, 371, 4),
+                Token::new(TT::LParen, 375, 1),
+                Token::new(TT::RParen, 376, 1),
+                Token::new(TT::LBrace, 377, 1),
+                Token::new(TT::RBrace, 386, 1),
+                Token::new(TT::RBrace, 396, 1),
+                Token::new(TT::Identifier, 406, 6),
+                Token::new(TT::Dot, 412, 1),
+                Token::new(TT::Identifier, 413, 4),
+                Token::new(TT::LParen, 417, 1),
+                Token::new(TT::RParen, 418, 1),
+                Token::new(TT::Eof, 419, 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn unknown_tokens() {
+        let src = "\
+        name ? 8
+        "
+        .trim();
+
+        let mut lexer = Lexer::new(src);
+        let lex_result = lexer.lex_tokens();
+        assert!(lex_result.has_errors(), "lexing result must have an error");
+        assert_eq!(
+            lex_result.errors,
+            vec![LoxError::Lex {
+                message: String::from("unknown token"),
+                offset: 5,
+                length: 1
+            },]
+        );
+        assert_eq!(
+            lex_result.tokens,
+            vec![
+                Token::new(TT::Identifier, 0, 4),
+                Token::new(TT::Number, 7, 1),
+                Token::new(TT::Eof, 8, 0),
             ]
         );
     }

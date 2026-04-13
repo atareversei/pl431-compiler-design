@@ -58,6 +58,7 @@ pub enum TokenType {
     Number,
 
     // Keywords.
+    Import,
     And,
     Or,
     If,
