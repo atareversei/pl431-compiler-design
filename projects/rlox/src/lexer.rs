@@ -73,7 +73,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        tokens.push(Token::new(TT::Eof, self.current, 0));
+        tokens.push(Token::new(TT::Eof, self.current, 0, String::from("<Eof>")));
         LexResult { tokens, errors }
     }
 
@@ -202,7 +202,7 @@ impl<'a> Lexer<'a> {
         // consume `"`.
         self.advance();
 
-        Ok(Some(Token::new(TT::String, self.start, self.token_len())))
+        Ok(Some(self.new_token(TT::String)))
     }
 
     fn number(&mut self) -> Result<Option<Token>, LoxError> {
@@ -218,7 +218,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        Ok(Some(Token::new(TT::Number, self.start, self.token_len())))
+        Ok(Some(self.new_token(TT::Number)))
     }
 
     fn identifier(&mut self) -> Result<Option<Token>, LoxError> {
@@ -231,11 +231,7 @@ impl<'a> Lexer<'a> {
         if let Some(tt) = tt {
             Ok(Some(self.new_token(*tt)))
         } else {
-            Ok(Some(Token::new(
-                TT::Identifier,
-                self.start,
-                self.token_len(),
-            )))
+            Ok(Some(self.new_token(TT::Identifier)))
         }
     }
 
@@ -248,7 +244,12 @@ impl<'a> Lexer<'a> {
     }
 
     fn new_token(&self, token_type: TT) -> Token {
-        Token::new(token_type, self.start, self.token_len())
+        Token::new(
+            token_type,
+            self.start,
+            self.token_len(),
+            self.source[self.start..self.current].to_string(),
+        )
     }
 
     fn is_digit(&self, c: char) -> bool {
@@ -268,6 +269,10 @@ impl<'a> Lexer<'a> {
 mod tests {
     use super::*;
 
+    fn types(tokens: &[Token]) -> Vec<TT> {
+        tokens.iter().map(|t| t.token_type).collect()
+    }
+
     #[test]
     fn arithmetic() {
         let src = "\
@@ -284,30 +289,30 @@ mod tests {
         assert!(!lex_result.has_errors(), "lexing result must be errorless");
 
         assert_eq!(
-            lex_result.tokens,
+            types(&lex_result.tokens),
             vec![
-                Token::new(TT::Number, 0, 2),
-                Token::new(TT::Plus, 2, 1),
-                Token::new(TT::Number, 3, 4),
-                Token::new(TT::Equal, 7, 1),
-                Token::new(TT::Number, 8, 4),
-                Token::new(TT::Number, 21, 3),
-                Token::new(TT::Star, 24, 1),
-                Token::new(TT::Number, 25, 1),
-                Token::new(TT::Equal, 26, 1),
-                Token::new(TT::Number, 27, 4),
-                Token::new(TT::Number, 40, 1),
-                Token::new(TT::Slash, 41, 1),
-                Token::new(TT::Number, 42, 1),
-                Token::new(TT::Equal, 43, 1),
-                Token::new(TT::Number, 44, 1),
-                Token::new(TT::Number, 54, 1),
-                Token::new(TT::Minus, 55, 1),
-                Token::new(TT::Number, 56, 1),
-                Token::new(TT::Equal, 57, 1),
-                Token::new(TT::Minus, 58, 1),
-                Token::new(TT::Number, 59, 1),
-                Token::new(TT::Eof, 60, 0),
+                TT::Number,
+                TT::Plus,
+                TT::Number,
+                TT::Equal,
+                TT::Number,
+                TT::Number,
+                TT::Star,
+                TT::Number,
+                TT::Equal,
+                TT::Number,
+                TT::Number,
+                TT::Slash,
+                TT::Number,
+                TT::Equal,
+                TT::Number,
+                TT::Number,
+                TT::Minus,
+                TT::Number,
+                TT::Equal,
+                TT::Minus,
+                TT::Number,
+                TT::Eof,
             ]
         );
     }
@@ -332,7 +337,7 @@ mod tests {
         let mut lexer = Lexer::new(src);
         let lex_result = lexer.lex_tokens();
         assert!(!lex_result.has_errors(), "lexing result must be errorless");
-        assert_eq!(lex_result.tokens, vec![Token::new(TT::Eof, 322, 0),]);
+        assert_eq!(types(&lex_result.tokens), vec![TT::Eof,]);
     }
 
     #[test]
@@ -346,13 +351,8 @@ mod tests {
         let lex_result = lexer.lex_tokens();
         assert!(!lex_result.has_errors(), "lexing result must be errorless");
         assert_eq!(
-            lex_result.tokens,
-            vec![
-                Token::new(TT::Identifier, 0, 4),
-                Token::new(TT::Equal, 5, 1),
-                Token::new(TT::String, 7, 5),
-                Token::new(TT::Eof, 12, 0),
-            ]
+            types(&lex_result.tokens),
+            vec![TT::Identifier, TT::Equal, TT::String, TT::Eof,]
         );
     }
 
@@ -375,12 +375,8 @@ mod tests {
             },]
         );
         assert_eq!(
-            lex_result.tokens,
-            vec![
-                Token::new(TT::Identifier, 0, 4),
-                Token::new(TT::Equal, 5, 1),
-                Token::new(TT::Eof, 11, 0),
-            ]
+            types(&lex_result.tokens),
+            vec![TT::Identifier, TT::Equal, TT::Eof,]
         );
     }
 
@@ -400,24 +396,24 @@ mod tests {
 
         assert!(!lex_result.has_errors(), "lexing result must be errorless");
         assert_eq!(
-            lex_result.tokens,
+            types(&lex_result.tokens),
             vec![
-                Token::new(TT::Number, 0, 2),
-                Token::new(TT::Greater, 2, 1),
-                Token::new(TT::Number, 3, 2),
-                Token::new(TT::Number, 14, 1),
-                Token::new(TT::GreaterEqual, 15, 2),
-                Token::new(TT::Number, 17, 1),
-                Token::new(TT::String, 27, 2),
-                Token::new(TT::EqualEqual, 29, 2),
-                Token::new(TT::String, 31, 2),
-                Token::new(TT::Number, 42, 3),
-                Token::new(TT::Less, 45, 1),
-                Token::new(TT::Number, 46, 1),
-                Token::new(TT::Number, 56, 1),
-                Token::new(TT::LessEqual, 57, 2),
-                Token::new(TT::Number, 59, 1),
-                Token::new(TT::Eof, 60, 0),
+                TT::Number,
+                TT::Greater,
+                TT::Number,
+                TT::Number,
+                TT::GreaterEqual,
+                TT::Number,
+                TT::String,
+                TT::EqualEqual,
+                TT::String,
+                TT::Number,
+                TT::Less,
+                TT::Number,
+                TT::Number,
+                TT::LessEqual,
+                TT::Number,
+                TT::Eof,
             ]
         );
     }
@@ -452,58 +448,58 @@ mod tests {
 
         assert!(!lex_result.has_errors(), "lexing result must be errorless");
         assert_eq!(
-            lex_result.tokens,
+            types(&lex_result.tokens),
             vec![
-                Token::new(TT::Import, 0, 6),
-                Token::new(TT::String, 7, 9),
-                Token::new(TT::Var, 118, 3),
-                Token::new(TT::Identifier, 122, 6),
-                Token::new(TT::Func, 137, 4),
-                Token::new(TT::Identifier, 142, 3),
-                Token::new(TT::LParen, 145, 1),
-                Token::new(TT::Identifier, 146, 1),
-                Token::new(TT::Comma, 147, 1),
-                Token::new(TT::Identifier, 149, 1),
-                Token::new(TT::RParen, 150, 1),
-                Token::new(TT::LBrace, 152, 1),
-                Token::new(TT::Return, 166, 6),
-                Token::new(TT::Identifier, 173, 1),
-                Token::new(TT::Plus, 175, 1),
-                Token::new(TT::Identifier, 177, 1),
-                Token::new(TT::RBrace, 187, 1),
-                Token::new(TT::If, 261, 2),
-                Token::new(TT::LParen, 264, 1),
-                Token::new(TT::Identifier, 265, 3),
-                Token::new(TT::LParen, 268, 1),
-                Token::new(TT::Number, 269, 1),
-                Token::new(TT::Comma, 270, 1),
-                Token::new(TT::Number, 271, 1),
-                Token::new(TT::RParen, 272, 1),
-                Token::new(TT::BangEqual, 274, 2),
-                Token::new(TT::Number, 277, 2),
-                Token::new(TT::Or, 280, 2),
-                Token::new(TT::False, 283, 5),
-                Token::new(TT::LBrace, 289, 1),
-                Token::new(TT::Identifier, 303, 6),
-                Token::new(TT::Equal, 310, 1),
-                Token::new(TT::String, 312, 7),
-                Token::new(TT::RBrace, 328, 1),
-                Token::new(TT::Class, 339, 5),
-                Token::new(TT::Identifier, 345, 6),
-                Token::new(TT::LBrace, 352, 1),
-                Token::new(TT::Func, 366, 4),
-                Token::new(TT::Identifier, 371, 4),
-                Token::new(TT::LParen, 375, 1),
-                Token::new(TT::RParen, 376, 1),
-                Token::new(TT::LBrace, 377, 1),
-                Token::new(TT::RBrace, 386, 1),
-                Token::new(TT::RBrace, 396, 1),
-                Token::new(TT::Identifier, 406, 6),
-                Token::new(TT::Dot, 412, 1),
-                Token::new(TT::Identifier, 413, 4),
-                Token::new(TT::LParen, 417, 1),
-                Token::new(TT::RParen, 418, 1),
-                Token::new(TT::Eof, 419, 0),
+                TT::Import,
+                TT::String,
+                TT::Var,
+                TT::Identifier,
+                TT::Func,
+                TT::Identifier,
+                TT::LParen,
+                TT::Identifier,
+                TT::Comma,
+                TT::Identifier,
+                TT::RParen,
+                TT::LBrace,
+                TT::Return,
+                TT::Identifier,
+                TT::Plus,
+                TT::Identifier,
+                TT::RBrace,
+                TT::If,
+                TT::LParen,
+                TT::Identifier,
+                TT::LParen,
+                TT::Number,
+                TT::Comma,
+                TT::Number,
+                TT::RParen,
+                TT::BangEqual,
+                TT::Number,
+                TT::Or,
+                TT::False,
+                TT::LBrace,
+                TT::Identifier,
+                TT::Equal,
+                TT::String,
+                TT::RBrace,
+                TT::Class,
+                TT::Identifier,
+                TT::LBrace,
+                TT::Func,
+                TT::Identifier,
+                TT::LParen,
+                TT::RParen,
+                TT::LBrace,
+                TT::RBrace,
+                TT::RBrace,
+                TT::Identifier,
+                TT::Dot,
+                TT::Identifier,
+                TT::LParen,
+                TT::RParen,
+                TT::Eof,
             ]
         );
     }
@@ -527,12 +523,8 @@ mod tests {
             },]
         );
         assert_eq!(
-            lex_result.tokens,
-            vec![
-                Token::new(TT::Identifier, 0, 4),
-                Token::new(TT::Number, 7, 1),
-                Token::new(TT::Eof, 8, 0),
-            ]
+            types(&lex_result.tokens),
+            vec![TT::Identifier, TT::Number, TT::Eof,]
         );
     }
 }

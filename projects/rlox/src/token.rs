@@ -1,18 +1,20 @@
 use std::fmt;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
-    token_type: TokenType,
+    pub token_type: TokenType,
     offset: usize,
     length: usize,
+    lexeme: String,
 }
 
 impl Token {
-    pub fn new(token_type: TokenType, offset: usize, length: usize) -> Self {
+    pub fn new(token_type: TokenType, offset: usize, length: usize, lexeme: String) -> Self {
         Token {
             token_type,
             offset,
             length,
+            lexeme,
         }
     }
 }
