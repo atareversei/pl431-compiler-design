@@ -1,4 +1,6 @@
+mod printer;
 mod error;
+mod expression;
 mod lexer;
 mod lox;
 mod token;

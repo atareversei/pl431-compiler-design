@@ -5,7 +5,7 @@ pub struct Token {
     pub token_type: TokenType,
     offset: usize,
     length: usize,
-    lexeme: String,
+    pub lexeme: String,
 }
 
 impl Token {
