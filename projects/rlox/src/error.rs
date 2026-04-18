@@ -1,6 +1,8 @@
 use std::fmt;
 use std::io;
 
+use crate::token::Token;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoxError {
     Scan {
@@ -10,6 +12,10 @@ pub enum LoxError {
         message: String,
         offset: usize,
         length: usize,
+    },
+    // TODO: add token at which the error has occurred
+    Parse {
+        message: String,
     },
 }
 
@@ -22,6 +28,7 @@ impl fmt::Display for LoxError {
                 offset,
                 length,
             } => write!(f, "{} {}:{}", message, offset, length),
+            LoxError::Parse { message } => write!(f, "{}", message),
         }
     }
 }

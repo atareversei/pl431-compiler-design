@@ -1,8 +1,9 @@
-mod printer;
 mod error;
 mod expression;
 mod lexer;
 mod lox;
+mod parser;
+mod printer;
 mod token;
 
 use std::process;

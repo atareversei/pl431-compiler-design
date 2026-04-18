@@ -1,17 +1,17 @@
 use crate::expression::Expression;
 
-pub fn print(expr: &Expression) -> String {
+pub fn ast(expr: &Expression) -> String {
     match expr {
         Expression::Binary {
             left,
             operator,
             right,
-        } => format!("({} {} {})", operator.lexeme, print(left), print(right)),
+        } => format!("({} {} {})", operator.lexeme, ast(left), ast(right)),
         Expression::Unary { operator, right } => {
-            format!("({} {})", operator.lexeme, print(right))
+            format!("({} {})", operator.lexeme, ast(right))
         }
         Expression::Literal(v) => format!("{}", v),
-        Expression::Grouping(inner) => format!("(group {})", print(inner)),
+        Expression::Grouping(inner) => format!("(group {})", ast(inner)),
     }
 }
 
@@ -32,7 +32,7 @@ mod tests {
             right: Box::new(Expression::Literal(LiteralValue::Number(2.0))),
         };
 
-        let printed = print(&expression);
+        let printed = ast(&expression);
         assert_eq!(printed, "(+ 1 2)");
     }
 }

@@ -1,5 +1,5 @@
-use crate::error::LoxError;
 use crate::lexer::Lexer;
+use crate::{error::LoxError, parser::Parser, printer::ast};
 use std::{
     env, fs,
     io::{self, Write},
@@ -45,12 +45,19 @@ fn run_file(path: &str) -> Result<(), Vec<LoxError>> {
 fn start(source: &str) -> Result<(), Vec<LoxError>> {
     let mut lexer = Lexer::new(source);
     let lex_result = lexer.lex_tokens();
-
-    for token in &lex_result.tokens {
-        println!("{}", token);
-    }
-
     if lex_result.has_errors() {}
 
+    let mut parser = Parser::new(&lex_result.tokens);
+    let parse_result = parser.parse();
+    match parse_result {
+        Ok(v) => {
+            let tree = ast(&v);
+            println!("{tree}")
+        }
+        Err(err) => {
+            println!("{err}");
+            return Err(vec![err]);
+        }
+    };
     Ok(())
 }

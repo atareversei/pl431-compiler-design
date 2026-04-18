@@ -41,6 +41,8 @@ impl LexResult {
     }
 }
 
+type LexResultFn = Result<Option<Token>, LoxError>;
+
 pub struct Lexer<'a> {
     source: &'a str,
 
@@ -77,7 +79,7 @@ impl<'a> Lexer<'a> {
         LexResult { tokens, errors }
     }
 
-    fn lex_token(&mut self) -> Result<Option<Token>, LoxError> {
+    fn lex_token(&mut self) -> LexResultFn {
         let c = self.advance();
 
         let s = self.start;
@@ -143,7 +145,7 @@ impl<'a> Lexer<'a> {
         self.new_token(first_to_go)
     }
 
-    fn comment(&mut self) -> Result<Option<Token>, LoxError> {
+    fn comment(&mut self) -> LexResultFn {
         if self.peek() == '/' {
             self.single_line_comment()
         } else if self.peek() == '*' {
@@ -153,7 +155,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn single_line_comment(&mut self) -> Result<Option<Token>, LoxError> {
+    fn single_line_comment(&mut self) -> LexResultFn {
         self.advance();
         while self.peek() != '\n' && !self.is_at_end() {
             self.advance();
@@ -161,7 +163,7 @@ impl<'a> Lexer<'a> {
         Ok(None)
     }
 
-    fn multi_line_comment(&mut self) -> Result<Option<Token>, LoxError> {
+    fn multi_line_comment(&mut self) -> LexResultFn {
         self.advance();
         let mut depth = 0;
         let mut c: char;
@@ -186,7 +188,7 @@ impl<'a> Lexer<'a> {
         Ok(None)
     }
 
-    fn string(&mut self) -> Result<Option<Token>, LoxError> {
+    fn string(&mut self) -> LexResultFn {
         while !self.is_at_end() && self.peek() != '"' {
             self.advance();
         }
@@ -205,7 +207,7 @@ impl<'a> Lexer<'a> {
         Ok(Some(self.new_token(TT::String)))
     }
 
-    fn number(&mut self) -> Result<Option<Token>, LoxError> {
+    fn number(&mut self) -> LexResultFn {
         while self.is_digit(self.peek()) {
             self.advance();
         }
@@ -221,7 +223,7 @@ impl<'a> Lexer<'a> {
         Ok(Some(self.new_token(TT::Number)))
     }
 
-    fn identifier(&mut self) -> Result<Option<Token>, LoxError> {
+    fn identifier(&mut self) -> LexResultFn {
         while self.is_alpha_numeric(self.peek()) {
             self.advance();
         }
