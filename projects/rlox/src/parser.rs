@@ -143,6 +143,23 @@ impl<'a> Parser<'a> {
                 operator,
                 right: Box::new(right),
             });
+        } else if self.match_token(&[
+            TT::EqualEqual,
+            TT::BangEqual,
+            TT::Greater,
+            TT::GreaterEqual,
+            TT::Less,
+            TT::LessEqual,
+            TT::Plus,
+            TT::Star,
+            TT::Slash,
+        ]) {
+            return Err(LoxError::Parse {
+                message: format!(
+                    "missing left-hand operand before '{}'",
+                    self.previous().lexeme
+                ),
+            });
         }
         self.primary()
     }
