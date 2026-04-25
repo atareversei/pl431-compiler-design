@@ -2,11 +2,22 @@ use crate::expression::Expression;
 
 pub fn ast(expr: &Expression) -> String {
     match expr {
+        Expression::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => format!(
+            "({} ? {} : {})",
+            ast(condition),
+            ast(true_branch),
+            ast(false_branch)
+        ),
         Expression::Binary {
             left,
             operator,
             right,
         } => format!("({} {} {})", operator.lexeme, ast(left), ast(right)),
+        Expression::Comma { left, right } => format!("({}, {})", ast(left), ast(right)),
         Expression::Unary { operator, right } => {
             format!("({} {})", operator.lexeme, ast(right))
         }

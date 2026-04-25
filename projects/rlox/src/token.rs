@@ -43,6 +43,7 @@ pub enum TokenType {
     Comma,
     SemiColon,
     Colon,
+    Question,
 
     // Single or two character tokens.
     Bang,

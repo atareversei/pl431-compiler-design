@@ -40,7 +40,42 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&mut self) -> ParseResultFn {
-        self.equality()
+        self.comma()
+    }
+
+    fn comma(&mut self) -> ParseResultFn {
+        let mut expression = self.ternary()?;
+        while self.match_token(&[TT::Comma]) {
+            let right = self.ternary()?;
+            expression = Expression::Comma {
+                left: Box::new(expression),
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expression)
+    }
+
+    fn ternary(&mut self) -> ParseResultFn {
+        let mut expression = self.equality()?;
+        if self.match_token(&[TT::Question]) {
+            let t = self.expression()?;
+
+            if self.match_token(&[TT::Colon]) {
+                let f = self.ternary()?;
+                expression = Expression::Ternary {
+                    condition: Box::new(expression),
+                    true_branch: Box::new(t),
+                    false_branch: Box::new(f),
+                };
+            } else {
+                return Err(LoxError::Parse {
+                    message: String::from("expect ':' after ternary"),
+                });
+            };
+        }
+
+        Ok(expression)
     }
 
     fn equality(&mut self) -> ParseResultFn {
@@ -113,7 +148,7 @@ impl<'a> Parser<'a> {
     }
 
     fn primary(&mut self) -> ParseResultFn {
-        let token = self.peek();
+        let token = self.advance();
         match token.token_type {
             TT::True => Ok(Expression::Literal(LiteralValue::True)),
             TT::False => Ok(Expression::Literal(LiteralValue::False)),
@@ -131,13 +166,12 @@ impl<'a> Parser<'a> {
                 }
             }
             TT::LParen => {
-                self.advance();
                 let expression = self.expression()?;
                 if self.match_token(&[TT::RParen]) {
                     return Ok(Expression::Grouping(Box::new(expression)));
                 }
                 Err(LoxError::Parse {
-                    message: String::from("expect ') after expression'"),
+                    message: String::from("expect ')' after expression"),
                 })
             }
             _ => Err(LoxError::Parse {
@@ -160,14 +194,14 @@ impl<'a> Parser<'a> {
         if self.is_at_end() {
             return false;
         }
-        return self.peek().token_type == tt;
+        self.peek().token_type == tt
     }
 
     fn advance(&mut self) -> &Token {
         if !self.is_at_end() {
             self.current += 1;
         }
-        return self.previous();
+        self.previous()
     }
 
     fn is_at_end(&self) -> bool {

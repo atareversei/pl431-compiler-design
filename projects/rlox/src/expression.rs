@@ -4,9 +4,18 @@ use crate::token::Token;
 
 #[derive(Debug)]
 pub enum Expression {
+    Ternary {
+        condition: Box<Expression>,
+        true_branch: Box<Expression>,
+        false_branch: Box<Expression>,
+    },
     Binary {
         left: Box<Expression>,
         operator: Token,
+        right: Box<Expression>,
+    },
+    Comma {
+        left: Box<Expression>,
         right: Box<Expression>,
     },
     Unary {
