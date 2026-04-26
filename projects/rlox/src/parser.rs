@@ -233,3 +233,188 @@ impl<'a> Parser<'a> {
         &self.tokens[self.current - 1]
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::Lexer;
+    use crate::token::{Token, TokenType as TT};
+
+    fn tr() -> Expression {
+        Expression::Literal(LiteralValue::True)
+    }
+
+    fn fl() -> Expression {
+        Expression::Literal(LiteralValue::False)
+    }
+
+    fn null() -> Expression {
+        Expression::Literal(LiteralValue::Null)
+    }
+
+    fn num(n: f64) -> Expression {
+        Expression::Literal(LiteralValue::Number(n))
+    }
+
+    fn str(s: String) -> Expression {
+        Expression::Literal(LiteralValue::String(s))
+    }
+
+    fn binary(left: Expression, operator: TT, right: Expression) -> Expression {
+        Expression::Binary {
+            left: Box::new(left),
+            operator: Token::new(operator, 0, 0, operator.test_lexeme().to_string()),
+            right: Box::new(right),
+        }
+    }
+
+    fn unary(operator: TT, right: Expression) -> Expression {
+        Expression::Unary {
+            operator: Token::new(operator, 0, 0, operator.test_lexeme().to_string()),
+            right: Box::new(right),
+        }
+    }
+
+    fn ternary(
+        condition: Expression,
+        true_branch: Expression,
+        false_branch: Expression,
+    ) -> Expression {
+        Expression::Ternary {
+            condition: Box::new(condition),
+            true_branch: Box::new(true_branch),
+            false_branch: Box::new(false_branch),
+        }
+    }
+
+    fn comma(left: Expression, right: Expression) -> Expression {
+        Expression::Comma {
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    fn normalize_token(token: &Token) -> Token {
+        Token::new(
+            token.token_type,
+            0,
+            0,
+            token.token_type.test_lexeme().to_string(),
+        )
+    }
+
+    fn normalize_expression(expression: &Expression) -> Expression {
+        match expression {
+            Expression::Binary {
+                left,
+                operator,
+                right,
+            } => Expression::Binary {
+                left: Box::new(normalize_expression(left)),
+                operator: normalize_token(operator),
+                right: Box::new(normalize_expression(right)),
+            },
+            Expression::Unary { operator, right } => Expression::Unary {
+                operator: normalize_token(operator),
+                right: Box::new(normalize_expression(right)),
+            },
+            Expression::Literal(lit) => Expression::Literal(lit.clone()),
+            Expression::Grouping(inner) => {
+                Expression::Grouping(Box::new(normalize_expression(inner)))
+            }
+            Expression::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => Expression::Ternary {
+                condition: Box::new(normalize_expression(condition)),
+                true_branch: Box::new(normalize_expression(true_branch)),
+                false_branch: Box::new(normalize_expression(false_branch)),
+            },
+            Expression::Comma { left, right } => Expression::Comma {
+                left: Box::new(normalize_expression(left)),
+                right: Box::new(normalize_expression(right)),
+            },
+        }
+    }
+
+    fn get_parse_result(src: &str) -> Result<Expression, LoxError> {
+        let mut lexer = Lexer::new(src);
+        let lex_result = lexer.lex_tokens();
+        let mut parser = Parser::new(&lex_result.tokens);
+        let parse_result = parser.parse()?;
+        Ok(normalize_expression(&parse_result))
+    }
+
+    #[test]
+    fn arithmetic_operations() -> Result<(), LoxError> {
+        let src = "\
+        5+4*3-1/2
+        "
+        .trim();
+
+        let parse_result = get_parse_result(src)?;
+        let expected = binary(
+            binary(num(5.0), TT::Plus, binary(num(4.0), TT::Star, num(3.0))),
+            TT::Minus,
+            binary(num(1.0), TT::Slash, num(2.0)),
+        );
+
+        assert_eq!(parse_result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn unary_operations() -> Result<(), LoxError> {
+        let src = "\
+        --3!=!!!\"rlox\"
+        ";
+
+        let parse_result = get_parse_result(src)?;
+        let expected = binary(
+            unary(TT::Minus, unary(TT::Minus, num(3.0))),
+            TT::BangEqual,
+            unary(
+                TT::Bang,
+                unary(TT::Bang, unary(TT::Bang, str("\"rlox\"".to_string()))),
+            ),
+        );
+
+        assert_eq!(parse_result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn ternary_operations() -> Result<(), LoxError> {
+        let src = "\
+        43.5 >= null ? -3 > 4 : !!true < 1 ? 0.0 <= false : 3 == \"rlox\" : 
+        ";
+
+        let parse_result = get_parse_result(src)?;
+        let expected = ternary(
+            binary(num(43.5), TT::GreaterEqual, null()),
+            binary(unary(TT::Minus, num(3.0)), TT::Greater, num(4.0)),
+            ternary(
+                binary(unary(TT::Bang, unary(TT::Bang, tr())), TT::Less, num(1.0)),
+                binary(num(0.0), TT::LessEqual, fl()),
+                binary(num(3.0), TT::EqualEqual, str("\"rlox\"".to_string())),
+            ),
+        );
+
+        assert_eq!(parse_result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn comma_operations() -> Result<(), LoxError> {
+        let src = "\
+        true ? 1 : 2, 3, 4
+        ";
+
+        let parse_result = get_parse_result(src)?;
+        let expected = comma(comma(ternary(tr(), num(1.0), num(2.0)), num(3.0)), num(4.0));
+
+        assert_eq!(parse_result, expected);
+        Ok(())
+    }
+}

@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::token::Token;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Expression {
     Ternary {
         condition: Box<Expression>,
@@ -26,7 +26,7 @@ pub enum Expression {
     Literal(LiteralValue),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LiteralValue {
     String(String),
     Number(f64),

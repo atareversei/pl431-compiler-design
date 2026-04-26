@@ -511,7 +511,7 @@ mod tests {
     #[test]
     fn unknown_tokens() {
         let src = "\
-        name ? 8
+        name ^ 8
         "
         .trim();
 

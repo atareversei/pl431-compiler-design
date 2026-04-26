@@ -88,3 +88,54 @@ impl fmt::Display for TokenType {
         }
     }
 }
+
+impl TokenType {
+    /// Returns the lexeme for this token type (test-only utility)
+    #[cfg(test)]
+    pub fn test_lexeme(&self) -> &'static str {
+        match self {
+            TokenType::LParen => "(",
+            TokenType::RParen => ")",
+            TokenType::LBracket => "[",
+            TokenType::RBracket => "]",
+            TokenType::LBrace => "{",
+            TokenType::RBrace => "}",
+            TokenType::Star => "*",
+            TokenType::Plus => "+",
+            TokenType::Minus => "-",
+            TokenType::Slash => "/",
+            TokenType::Dot => ".",
+            TokenType::Comma => ",",
+            TokenType::SemiColon => ";",
+            TokenType::Colon => ":",
+            TokenType::Question => "?",
+            TokenType::Bang => "!",
+            TokenType::BangEqual => "!=",
+            TokenType::Equal => "=",
+            TokenType::EqualEqual => "==",
+            TokenType::Greater => ">",
+            TokenType::GreaterEqual => ">=",
+            TokenType::Less => "<",
+            TokenType::LessEqual => "<=",
+            TokenType::Identifier => "identifier",
+            TokenType::String => "string",
+            TokenType::Number => "number",
+            TokenType::Import => "import",
+            TokenType::And => "and",
+            TokenType::Or => "or",
+            TokenType::If => "if",
+            TokenType::Else => "else",
+            TokenType::Var => "var",
+            TokenType::Null => "null",
+            TokenType::For => "for",
+            TokenType::Func => "func",
+            TokenType::Return => "return",
+            TokenType::True => "true",
+            TokenType::False => "false",
+            TokenType::Class => "class",
+            TokenType::Super => "super",
+            TokenType::This => "this",
+            TokenType::Eof => "EOF",
+        }
+    }
+}
