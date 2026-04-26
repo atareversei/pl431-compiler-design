@@ -14,12 +14,12 @@ pub enum Expression {
         operator: Token,
         right: Box<Expression>,
     },
-    Comma {
-        left: Box<Expression>,
-        right: Box<Expression>,
-    },
     Unary {
         operator: Token,
+        right: Box<Expression>,
+    },
+    Comma {
+        left: Box<Expression>,
         right: Box<Expression>,
     },
     Grouping(Box<Expression>),
