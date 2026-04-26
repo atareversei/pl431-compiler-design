@@ -2,8 +2,8 @@ use crate::error::LoxError;
 use crate::expression::{Expression, LiteralValue};
 use crate::token::TokenType as TT;
 
-#[derive(Debug)]
-enum Value {
+#[derive(Debug, PartialEq)]
+pub enum Value {
     Number(f64),
     String(String),
     Boolean(bool),
@@ -18,6 +18,17 @@ pub struct Interpreter {}
 impl Interpreter {
     pub fn interpret(&self, expression: &Expression) -> InterpretResult {
         match expression {
+            Expression::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => {
+                if self.is_truthy(self.interpret(condition)?) {
+                    self.interpret(true_branch)
+                } else {
+                    self.interpret(false_branch)
+                }
+            }
             Expression::Binary {
                 left,
                 operator,
@@ -27,7 +38,59 @@ impl Interpreter {
                 let right_value = self.interpret(right)?;
 
                 match operator.token_type {
-                    TT::Plus => {}
+                    TT::EqualEqual => Ok(Value::Boolean(self.is_equal(left_value, right_value))),
+
+                    TT::BangEqual => Ok(Value::Boolean(!self.is_equal(left_value, right_value))),
+
+                    TT::Greater => {
+                        let (l, r) = self.check_number_operands(
+                            operator.lexeme.to_string(),
+                            left_value,
+                            right_value,
+                        )?;
+                        Ok(Value::Boolean(l > r))
+                    }
+                    TT::GreaterEqual => {
+                        let (l, r) = self.check_number_operands(
+                            operator.lexeme.to_string(),
+                            left_value,
+                            right_value,
+                        )?;
+                        Ok(Value::Boolean(l >= r))
+                    }
+                    TT::Less => {
+                        let (l, r) = self.check_number_operands(
+                            operator.lexeme.to_string(),
+                            left_value,
+                            right_value,
+                        )?;
+                        Ok(Value::Boolean(l < r))
+                    }
+                    TT::LessEqual => {
+                        let (l, r) = self.check_number_operands(
+                            operator.lexeme.to_string(),
+                            left_value,
+                            right_value,
+                        )?;
+                        Ok(Value::Boolean(l <= r))
+                    }
+
+                    TT::Plus => match (left_value, right_value) {
+                        (Value::String(l), Value::String(r)) => {
+                            Ok(Value::String(format!("{}{}", l, r)))
+                        }
+                        (Value::Number(l), Value::String(r)) => {
+                            Ok(Value::String(format!("{}{}", l, r)))
+                        }
+                        (Value::String(l), Value::Number(r)) => {
+                            Ok(Value::String(format!("{}{}", l, r)))
+                        }
+
+                        (Value::Number(l), Value::Number(r)) => Ok(Value::Number(l + r)),
+                        _ => Err(LoxError::Runtime {
+                            message: String::from("operands must be two numbers or two strings"),
+                        }),
+                    },
                     TT::Minus => {
                         let (l, r) = self.check_number_operands(
                             operator.lexeme.to_string(),
@@ -50,6 +113,12 @@ impl Interpreter {
                             left_value,
                             right_value,
                         )?;
+                        if r == 0.0 {
+                            return Err(LoxError::Runtime {
+                                message: String::from("division by 0 is not allowed"),
+                            });
+                        }
+
                         Ok(Value::Number(l / r))
                     }
                     _ => unreachable!("binary only allows '+', '-', '*', and '/' as operators"),
@@ -72,15 +141,18 @@ impl Interpreter {
                     _ => unreachable!("unary only allows '-' and '!' as operators"),
                 }
             }
+            Expression::Comma { left, right } => {
+                self.interpret(left)?;
+                self.interpret(right)
+            }
             Expression::Grouping(expr) => self.interpret(expr),
             Expression::Literal(value) => match value {
                 LiteralValue::False => Ok(Value::Boolean(false)),
                 LiteralValue::True => Ok(Value::Boolean(true)),
                 LiteralValue::Number(n) => Ok(Value::Number(*n)),
-                LiteralValue::String(s) => Ok(Value::String(*s)),
+                LiteralValue::String(s) => Ok(Value::String(s.clone())),
                 LiteralValue::Null => Ok(Value::Null),
             },
-            _ => Ok(Value::Null),
         }
     }
 
@@ -89,6 +161,14 @@ impl Interpreter {
             Value::Null => false,
             Value::Boolean(b) => b,
             _ => true,
+        }
+    }
+
+    fn is_equal(&self, a: Value, b: Value) -> bool {
+        match (&a, &b) {
+            (Value::Null, Value::Null) => true,
+            (Value::Null, _) => false,
+            _ => a == b,
         }
     }
 

@@ -1,3 +1,4 @@
+use crate::interpreter::Interpreter;
 use crate::lexer::Lexer;
 use crate::{error::LoxError, parser::Parser, printer::ast};
 use std::{
@@ -48,16 +49,24 @@ fn start(source: &str) -> Result<(), Vec<LoxError>> {
     if lex_result.has_errors() {}
 
     let mut parser = Parser::new(&lex_result.tokens);
-    let parse_result = parser.parse();
-    match parse_result {
-        Ok(v) => {
-            let tree = ast(&v);
-            println!("{tree}")
-        }
+    let value = match parser.parse() {
+        Ok(v) => v,
         Err(err) => {
             println!("{err}");
             return Err(vec![err]);
         }
     };
+
+    let interpreter = Interpreter {};
+    let evaluated = match interpreter.interpret(&value) {
+        Ok(e) => e,
+        Err(err) => {
+            println!("{err}");
+            return Err(vec![err]);
+        }
+    };
+
+    println!("{:?}", evaluated);
+
     Ok(())
 }
