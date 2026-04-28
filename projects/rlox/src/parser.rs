@@ -40,9 +40,32 @@ impl<'a> Parser<'a> {
     pub fn parse(&mut self) -> ParseResult {
         let mut statements = vec![];
         while !self.is_at_end() {
-            statements.push(self.statement()?);
+            statements.push(self.declaration()?);
         }
         Ok(statements)
+    }
+
+    fn declaration(&mut self) -> ParseStmtResultFn {
+        if self.match_token(&[TT::Var]) {
+            return self.var_declaration();
+        }
+        self.statement()
+    }
+
+    fn var_declaration(&mut self) -> ParseStmtResultFn {
+        self.consume(TT::Identifier, String::from("expect variable name"))?;
+        let name = self.previous().clone();
+
+        let mut initializer = Expression::Literal(LiteralValue::Null);
+        if self.match_token(&[TT::Equal]) {
+            initializer = self.expression()?;
+        }
+
+        self.consume(
+            TT::SemiColon,
+            String::from("expect ';' after variable declaration"),
+        )?;
+        Ok(Statement::Var { name, initializer })
     }
 
     fn statement(&mut self) -> ParseStmtResultFn {
@@ -208,6 +231,7 @@ impl<'a> Parser<'a> {
                 self.consume(TT::RParen, String::from("expect ')' after expression"))?;
                 return Ok(Expression::Grouping(Box::new(expression)));
             }
+            TT::Identifier => Ok(Expression::Variable(self.previous().clone())),
             _ => Err(LoxError::Parse {
                 message: String::from("expect expression"),
             }),
@@ -246,13 +270,13 @@ impl<'a> Parser<'a> {
         &self.tokens[self.current]
     }
 
-    fn consume(&mut self, token_type: TT, error_message: String) -> Result<(), LoxError> {
+    fn consume(&mut self, token_type: TT, error_message: String) -> Result<&Token, LoxError> {
         if !self.match_token(&[token_type]) {
             return Err(LoxError::Parse {
                 message: error_message,
             });
         }
-        Ok(())
+        Ok(self.previous())
     }
 
     fn previous(&self) -> &Token {
@@ -365,11 +389,16 @@ mod tests {
                 left: Box::new(normalize_expression(left)),
                 right: Box::new(normalize_expression(right)),
             },
+            Expression::Variable(var) => Expression::Variable(var.clone()),
         }
     }
 
     fn normalize_statement(statement: &Statement) -> Statement {
         match statement {
+            Statement::Var { name, initializer } => Statement::Var {
+                name: name.clone(),
+                initializer: normalize_expression(initializer),
+            },
             Statement::Expression(expression) => {
                 Statement::Expression(normalize_expression(expression))
             }

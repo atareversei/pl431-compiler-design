@@ -23,6 +23,7 @@ pub fn ast(expr: &Expression) -> String {
         }
         Expression::Literal(v) => format!("{}", v),
         Expression::Grouping(inner) => format!("(group {})", ast(inner)),
+        Expression::Variable(var) => format!("{}", var.lexeme),
     }
 }
 

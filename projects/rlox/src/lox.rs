@@ -1,6 +1,7 @@
+use crate::environment::Environment;
 use crate::interpreter::Interpreter;
 use crate::lexer::Lexer;
-use crate::{error::LoxError, parser::Parser, printer::ast};
+use crate::{error::LoxError, parser::Parser};
 use std::{
     env, fs,
     io::{self, Write},
@@ -20,6 +21,7 @@ pub fn run() -> Result<(), Vec<LoxError>> {
 }
 
 fn run_repl() -> Result<(), Vec<LoxError>> {
+    let mut environment = Environment::new();
     let stdin = io::stdin();
     let mut line = String::new();
 
@@ -31,7 +33,34 @@ fn run_repl() -> Result<(), Vec<LoxError>> {
         if bytes == 0 {
             break;
         }
-        start(&line).map_err(|err| vec![err]);
+
+        let mut lexer = Lexer::new(&line);
+        let lex_result = lexer.lex_tokens();
+        if lex_result.has_errors() {}
+
+        let mut parser = Parser::new(&lex_result.tokens);
+        let statements = match parser.parse() {
+            Ok(v) => v,
+            Err(err) => {
+                println!("{err}");
+                return Err(vec![err]);
+            }
+        };
+
+        let mut interpreter = Interpreter::new(statements, environment);
+        match interpreter.interpret() {
+            Ok(ctx) => {
+                environment = ctx.environment;
+
+                if let Some(v) = ctx.last_expr_value {
+                    println!("{:?}", v);
+                }
+            }
+            Err(err) => {
+                println!("{err}");
+                return Err(vec![err]);
+            }
+        };
     }
 
     Ok(())
@@ -44,29 +73,5 @@ fn run_file(path: &str) -> Result<(), Vec<LoxError>> {
 }
 
 fn start(source: &str) -> Result<(), Vec<LoxError>> {
-    let mut lexer = Lexer::new(source);
-    let lex_result = lexer.lex_tokens();
-    if lex_result.has_errors() {}
-
-    let mut parser = Parser::new(&lex_result.tokens);
-    let statements = match parser.parse() {
-        Ok(v) => v,
-        Err(err) => {
-            println!("{err}");
-            return Err(vec![err]);
-        }
-    };
-
-    let interpreter = Interpreter::new(statements);
-    let evaluated = match interpreter.interpret() {
-        Ok(()) => (),
-        Err(err) => {
-            println!("{err}");
-            return Err(vec![err]);
-        }
-    };
-
-    println!("{:?}", evaluated);
-
     Ok(())
 }

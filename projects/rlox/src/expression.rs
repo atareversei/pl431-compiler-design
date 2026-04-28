@@ -22,6 +22,7 @@ pub enum Expression {
         left: Box<Expression>,
         right: Box<Expression>,
     },
+    Variable(Token),
     Grouping(Box<Expression>),
     Literal(LiteralValue),
 }

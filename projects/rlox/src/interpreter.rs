@@ -1,13 +1,19 @@
 use crate::{
+    environment::Environment,
     error::LoxError,
     expression::{Expression, LiteralValue},
     statement::Statement,
     token::TokenType as TT,
 };
 
-pub type ExecutionResult = Result<(), LoxError>;
+pub struct ExecutionContext {
+    pub environment: Environment,
+    pub last_expr_value: Option<Value>,
+}
+pub type ExecutionResult = Result<Option<Value>, LoxError>;
 
-#[derive(Debug, PartialEq)]
+// TODO: check to see if Value and LiteralValue could be merged into one entity
+#[derive(Debug, PartialEq, Clone)]
 pub enum Value {
     Number(f64),
     String(String),
@@ -17,31 +23,50 @@ pub enum Value {
 pub type EvaluationResult = Result<Value, LoxError>;
 
 pub struct Interpreter {
+    environment: Environment,
     statements: Vec<Statement>,
 }
 
 impl Interpreter {
-    pub fn new(statements: Vec<Statement>) -> Self {
-        Interpreter { statements }
-    }
-
-    pub fn interpret(&self) -> ExecutionResult {
-        for statement in &self.statements {
-            self.execute_statement(statement)?;
+    pub fn new(statements: Vec<Statement>, environment: Environment) -> Self {
+        Interpreter {
+            statements,
+            environment,
         }
-        Ok(())
     }
 
-    pub fn execute_statement(&self, statement: &Statement) -> ExecutionResult {
-        match statement {
+    // TODO: read more about Rust best practice and rewrite this function
+    pub fn interpret(&mut self) -> Result<ExecutionContext, LoxError> {
+        let indices: Vec<_> = (0..self.statements.len()).collect();
+        let mut value = None;
+        for i in indices {
+            value = self.execute_statement(i)?;
+        }
+
+        Ok(ExecutionContext {
+            environment: self.environment.clone(),
+            last_expr_value: value,
+        })
+    }
+
+    pub fn execute_statement(&mut self, statement_index: usize) -> ExecutionResult {
+        match &self.statements[statement_index] {
+            Statement::Var { name, initializer } => {
+                let mut value = Value::Null;
+                if &Expression::Literal(LiteralValue::Null) != initializer {
+                    value = self.evaluate_expression(initializer)?;
+                }
+                self.environment.define(name.lexeme.clone(), value);
+                Ok(None)
+            }
             Statement::Expression(expression) => {
-                self.evaluate_expression(expression)?;
-                Ok(())
+                let value = self.evaluate_expression(expression)?;
+                Ok(Some(value))
             }
             Statement::Print(expression) => {
                 let value = self.evaluate_expression(expression)?;
                 println!("{:?}", value);
-                Ok(())
+                Ok(None)
             }
         }
     }
@@ -183,6 +208,7 @@ impl Interpreter {
                 LiteralValue::String(s) => Ok(Value::String(s.clone())),
                 LiteralValue::Null => Ok(Value::Null),
             },
+            Expression::Variable(name) => self.environment.get(name.lexeme.clone()),
         }
     }
 
