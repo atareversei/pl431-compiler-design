@@ -1,6 +1,11 @@
-use crate::error::LoxError;
-use crate::expression::{Expression, LiteralValue};
-use crate::token::TokenType as TT;
+use crate::{
+    error::LoxError,
+    expression::{Expression, LiteralValue},
+    statement::Statement,
+    token::TokenType as TT,
+};
+
+pub type ExecutionResult = Result<(), LoxError>;
 
 #[derive(Debug, PartialEq)]
 pub enum Value {
@@ -9,24 +14,49 @@ pub enum Value {
     Boolean(bool),
     Null,
 }
+pub type EvaluationResult = Result<Value, LoxError>;
 
-pub type InterpretResult = Result<Value, LoxError>;
-type InterpretResultFn = Result<Value, LoxError>;
-
-pub struct Interpreter {}
+pub struct Interpreter {
+    statements: Vec<Statement>,
+}
 
 impl Interpreter {
-    pub fn interpret(&self, expression: &Expression) -> InterpretResult {
+    pub fn new(statements: Vec<Statement>) -> Self {
+        Interpreter { statements }
+    }
+
+    pub fn interpret(&self) -> ExecutionResult {
+        for statement in &self.statements {
+            self.execute_statement(statement)?;
+        }
+        Ok(())
+    }
+
+    pub fn execute_statement(&self, statement: &Statement) -> ExecutionResult {
+        match statement {
+            Statement::Expression(expression) => {
+                self.evaluate_expression(expression)?;
+                Ok(())
+            }
+            Statement::Print(expression) => {
+                let value = self.evaluate_expression(expression)?;
+                println!("{:?}", value);
+                Ok(())
+            }
+        }
+    }
+
+    pub fn evaluate_expression(&self, expression: &Expression) -> EvaluationResult {
         match expression {
             Expression::Ternary {
                 condition,
                 true_branch,
                 false_branch,
             } => {
-                if self.is_truthy(self.interpret(condition)?) {
-                    self.interpret(true_branch)
+                if self.is_truthy(self.evaluate_expression(condition)?) {
+                    self.evaluate_expression(true_branch)
                 } else {
-                    self.interpret(false_branch)
+                    self.evaluate_expression(false_branch)
                 }
             }
             Expression::Binary {
@@ -34,8 +64,8 @@ impl Interpreter {
                 operator,
                 right,
             } => {
-                let left_value = self.interpret(left)?;
-                let right_value = self.interpret(right)?;
+                let left_value = self.evaluate_expression(left)?;
+                let right_value = self.evaluate_expression(right)?;
 
                 match operator.token_type {
                     TT::EqualEqual => Ok(Value::Boolean(self.is_equal(left_value, right_value))),
@@ -125,7 +155,7 @@ impl Interpreter {
                 }
             }
             Expression::Unary { operator, right } => {
-                let right_value = self.interpret(right)?;
+                let right_value = self.evaluate_expression(right)?;
 
                 match operator.token_type {
                     TT::Minus => {
@@ -142,10 +172,10 @@ impl Interpreter {
                 }
             }
             Expression::Comma { left, right } => {
-                self.interpret(left)?;
-                self.interpret(right)
+                self.evaluate_expression(left)?;
+                self.evaluate_expression(right)
             }
-            Expression::Grouping(expr) => self.interpret(expr),
+            Expression::Grouping(expr) => self.evaluate_expression(expr),
             Expression::Literal(value) => match value {
                 LiteralValue::False => Ok(Value::Boolean(false)),
                 LiteralValue::True => Ok(Value::Boolean(true)),

@@ -1,14 +1,16 @@
 use crate::{
     error::LoxError,
     expression::{Expression, LiteralValue},
+    statement::Statement,
     token::{Token, TokenType as TT},
 };
 
 // TODO: remove `clone()`
 
 // Redesign output strategy
-pub type ParseResult = Result<Expression, LoxError>;
-type ParseResultFn = Result<Expression, LoxError>;
+pub type ParseResult = Result<Vec<Statement>, LoxError>;
+type ParseStmtResultFn = Result<Statement, LoxError>;
+type ParseExprResultFn = Result<Expression, LoxError>;
 
 pub struct Parser<'a> {
     current: usize,
@@ -36,14 +38,38 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) -> ParseResult {
-        self.expression()
+        let mut statements = vec![];
+        while !self.is_at_end() {
+            statements.push(self.statement()?);
+        }
+        Ok(statements)
     }
 
-    fn expression(&mut self) -> ParseResultFn {
+    fn statement(&mut self) -> ParseStmtResultFn {
+        if self.match_token(&[TT::Print]) {
+            return self.print_statement();
+        }
+
+        self.expression_statement()
+    }
+
+    fn print_statement(&mut self) -> ParseStmtResultFn {
+        let value = self.expression()?;
+        self.consume(TT::SemiColon, String::from("expect ';' after value"))?;
+        Ok(Statement::Print(value))
+    }
+
+    fn expression_statement(&mut self) -> ParseStmtResultFn {
+        let value = self.expression()?;
+        self.consume(TT::SemiColon, String::from("expect ';' after value"))?;
+        Ok(Statement::Expression(value))
+    }
+
+    fn expression(&mut self) -> ParseExprResultFn {
         self.comma()
     }
 
-    fn comma(&mut self) -> ParseResultFn {
+    fn comma(&mut self) -> ParseExprResultFn {
         let mut expression = self.ternary()?;
         while self.match_token(&[TT::Comma]) {
             let right = self.ternary()?;
@@ -56,29 +82,24 @@ impl<'a> Parser<'a> {
         Ok(expression)
     }
 
-    fn ternary(&mut self) -> ParseResultFn {
+    fn ternary(&mut self) -> ParseExprResultFn {
         let mut expression = self.equality()?;
         if self.match_token(&[TT::Question]) {
             let t = self.expression()?;
 
-            if self.match_token(&[TT::Colon]) {
-                let f = self.ternary()?;
-                expression = Expression::Ternary {
-                    condition: Box::new(expression),
-                    true_branch: Box::new(t),
-                    false_branch: Box::new(f),
-                };
-            } else {
-                return Err(LoxError::Parse {
-                    message: String::from("expect ':' after ternary"),
-                });
+            self.consume(TT::Colon, String::from("expect ':' after ternary"))?;
+            let f = self.ternary()?;
+            expression = Expression::Ternary {
+                condition: Box::new(expression),
+                true_branch: Box::new(t),
+                false_branch: Box::new(f),
             };
         }
 
         Ok(expression)
     }
 
-    fn equality(&mut self) -> ParseResultFn {
+    fn equality(&mut self) -> ParseExprResultFn {
         let mut expression = self.comparison()?;
         while self.match_token(&[TT::EqualEqual, TT::BangEqual]) {
             let operator = self.previous().clone();
@@ -93,7 +114,7 @@ impl<'a> Parser<'a> {
         Ok(expression)
     }
 
-    fn comparison(&mut self) -> ParseResultFn {
+    fn comparison(&mut self) -> ParseExprResultFn {
         let mut expression = self.term()?;
         while self.match_token(&[TT::Greater, TT::GreaterEqual, TT::Less, TT::LessEqual]) {
             let operator = self.previous().clone();
@@ -107,7 +128,7 @@ impl<'a> Parser<'a> {
         Ok(expression)
     }
 
-    fn term(&mut self) -> ParseResultFn {
+    fn term(&mut self) -> ParseExprResultFn {
         let mut expression = self.factor()?;
         while self.match_token(&[TT::Plus, TT::Minus]) {
             let operator = self.previous().clone();
@@ -121,7 +142,7 @@ impl<'a> Parser<'a> {
         Ok(expression)
     }
 
-    fn factor(&mut self) -> ParseResultFn {
+    fn factor(&mut self) -> ParseExprResultFn {
         let mut expression = self.unary()?;
         while self.match_token(&[TT::Star, TT::Slash]) {
             let operator = self.previous().clone();
@@ -135,7 +156,7 @@ impl<'a> Parser<'a> {
         Ok(expression)
     }
 
-    fn unary(&mut self) -> ParseResultFn {
+    fn unary(&mut self) -> ParseExprResultFn {
         if self.match_token(&[TT::Minus, TT::Bang]) {
             let operator = self.previous().clone();
             let right = self.unary()?;
@@ -164,7 +185,7 @@ impl<'a> Parser<'a> {
         self.primary()
     }
 
-    fn primary(&mut self) -> ParseResultFn {
+    fn primary(&mut self) -> ParseExprResultFn {
         let token = self.advance();
         match token.token_type {
             TT::True => Ok(Expression::Literal(LiteralValue::True)),
@@ -184,12 +205,8 @@ impl<'a> Parser<'a> {
             }
             TT::LParen => {
                 let expression = self.expression()?;
-                if self.match_token(&[TT::RParen]) {
-                    return Ok(Expression::Grouping(Box::new(expression)));
-                }
-                Err(LoxError::Parse {
-                    message: String::from("expect ')' after expression"),
-                })
+                self.consume(TT::RParen, String::from("expect ')' after expression"))?;
+                return Ok(Expression::Grouping(Box::new(expression)));
             }
             _ => Err(LoxError::Parse {
                 message: String::from("expect expression"),
@@ -227,6 +244,15 @@ impl<'a> Parser<'a> {
 
     fn peek(&self) -> &Token {
         &self.tokens[self.current]
+    }
+
+    fn consume(&mut self, token_type: TT, error_message: String) -> Result<(), LoxError> {
+        if !self.match_token(&[token_type]) {
+            return Err(LoxError::Parse {
+                message: error_message,
+            });
+        }
+        Ok(())
     }
 
     fn previous(&self) -> &Token {
@@ -294,6 +320,10 @@ mod tests {
         }
     }
 
+    fn expr_stmt(expr: Expression) -> Vec<Statement> {
+        vec![Statement::Expression(expr)]
+    }
+
     fn normalize_token(token: &Token) -> Token {
         Token::new(
             token.token_type,
@@ -338,27 +368,44 @@ mod tests {
         }
     }
 
-    fn get_parse_result(src: &str) -> Result<Expression, LoxError> {
+    fn normalize_statement(statement: &Statement) -> Statement {
+        match statement {
+            Statement::Expression(expression) => {
+                Statement::Expression(normalize_expression(expression))
+            }
+            Statement::Print(expression) => Statement::Print(normalize_expression(expression)),
+        }
+    }
+
+    fn normalize_statements(statements: Vec<Statement>) -> Vec<Statement> {
+        let mut normalized = vec![];
+        for statement in &statements {
+            normalized.push(normalize_statement(statement));
+        }
+        normalized
+    }
+
+    fn get_parse_result(src: &str) -> Result<Vec<Statement>, LoxError> {
         let mut lexer = Lexer::new(src);
         let lex_result = lexer.lex_tokens();
         let mut parser = Parser::new(&lex_result.tokens);
         let parse_result = parser.parse()?;
-        Ok(normalize_expression(&parse_result))
+        Ok(normalize_statements(parse_result))
     }
 
     #[test]
     fn arithmetic_operations() -> Result<(), LoxError> {
         let src = "\
-        5+4*3-1/2
+        5+4*3-1/2;
         "
         .trim();
 
         let parse_result = get_parse_result(src)?;
-        let expected = binary(
+        let expected = expr_stmt(binary(
             binary(num(5.0), TT::Plus, binary(num(4.0), TT::Star, num(3.0))),
             TT::Minus,
             binary(num(1.0), TT::Slash, num(2.0)),
-        );
+        ));
 
         assert_eq!(parse_result, expected);
         Ok(())
@@ -367,18 +414,18 @@ mod tests {
     #[test]
     fn unary_operations() -> Result<(), LoxError> {
         let src = "\
-        --3!=!!!\"rlox\"
+        --3!=!!!\"rlox\";
         ";
 
         let parse_result = get_parse_result(src)?;
-        let expected = binary(
+        let expected = expr_stmt(binary(
             unary(TT::Minus, unary(TT::Minus, num(3.0))),
             TT::BangEqual,
             unary(
                 TT::Bang,
                 unary(TT::Bang, unary(TT::Bang, str("\"rlox\"".to_string()))),
             ),
-        );
+        ));
 
         assert_eq!(parse_result, expected);
         Ok(())
@@ -387,11 +434,11 @@ mod tests {
     #[test]
     fn ternary_operations() -> Result<(), LoxError> {
         let src = "\
-        43.5 >= null ? -3 > 4 : !!true < 1 ? 0.0 <= false : 3 == \"rlox\" : 
+        43.5 >= null ? -3 > 4 : !!true < 1 ? 0.0 <= false : 3 == \"rlox\";
         ";
 
         let parse_result = get_parse_result(src)?;
-        let expected = ternary(
+        let expected = expr_stmt(ternary(
             binary(num(43.5), TT::GreaterEqual, null()),
             binary(unary(TT::Minus, num(3.0)), TT::Greater, num(4.0)),
             ternary(
@@ -399,7 +446,7 @@ mod tests {
                 binary(num(0.0), TT::LessEqual, fl()),
                 binary(num(3.0), TT::EqualEqual, str("\"rlox\"".to_string())),
             ),
-        );
+        ));
 
         assert_eq!(parse_result, expected);
         Ok(())
@@ -408,11 +455,14 @@ mod tests {
     #[test]
     fn comma_operations() -> Result<(), LoxError> {
         let src = "\
-        true ? 1 : 2, 3, 4
+        true ? 1 : 2, 3, 4;
         ";
 
         let parse_result = get_parse_result(src)?;
-        let expected = comma(comma(ternary(tr(), num(1.0), num(2.0)), num(3.0)), num(4.0));
+        let expected = expr_stmt(comma(
+            comma(ternary(tr(), num(1.0), num(2.0)), num(3.0)),
+            num(4.0),
+        ));
 
         assert_eq!(parse_result, expected);
         Ok(())

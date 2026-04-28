@@ -76,6 +76,7 @@ pub enum TokenType {
     Class,
     Super,
     This,
+    Print, // TODO: remove print statements
 
     // Other.
     Eof,
@@ -135,6 +136,7 @@ impl TokenType {
             TokenType::Class => "class",
             TokenType::Super => "super",
             TokenType::This => "this",
+            TokenType::Print => "print",
             TokenType::Eof => "EOF",
         }
     }

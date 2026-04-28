@@ -49,7 +49,7 @@ fn start(source: &str) -> Result<(), Vec<LoxError>> {
     if lex_result.has_errors() {}
 
     let mut parser = Parser::new(&lex_result.tokens);
-    let value = match parser.parse() {
+    let statements = match parser.parse() {
         Ok(v) => v,
         Err(err) => {
             println!("{err}");
@@ -57,9 +57,9 @@ fn start(source: &str) -> Result<(), Vec<LoxError>> {
         }
     };
 
-    let interpreter = Interpreter {};
-    let evaluated = match interpreter.interpret(&value) {
-        Ok(e) => e,
+    let interpreter = Interpreter::new(statements);
+    let evaluated = match interpreter.interpret() {
+        Ok(()) => (),
         Err(err) => {
             println!("{err}");
             return Err(vec![err]);

@@ -5,6 +5,7 @@ mod lexer;
 mod lox;
 mod parser;
 mod printer;
+mod statement;
 mod token;
 
 use std::process;
