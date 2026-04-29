@@ -71,8 +71,9 @@ impl<'a> Parser<'a> {
     fn statement(&mut self) -> ParseStmtResultFn {
         if self.match_token(&[TT::Print]) {
             return self.print_statement();
+        } else if self.match_token(&[TT::LBrace]) {
+            return self.block_statement();
         }
-
         self.expression_statement()
     }
 
@@ -80,6 +81,18 @@ impl<'a> Parser<'a> {
         let value = self.expression()?;
         self.consume(TT::SemiColon, String::from("expect ';' after value"))?;
         Ok(Statement::Print(value))
+    }
+
+    fn block_statement(&mut self) -> ParseStmtResultFn {
+        let mut statements = vec![];
+
+        while self.peek().token_type != TT::RBrace && !self.is_at_end() {
+            let statement = self.declaration()?;
+            statements.push(statement);
+        }
+
+        self.consume(TT::RBrace, String::from("expect '}' after block"))?;
+        Ok(Statement::Block(statements))
     }
 
     fn expression_statement(&mut self) -> ParseStmtResultFn {
@@ -93,13 +106,33 @@ impl<'a> Parser<'a> {
     }
 
     fn comma(&mut self) -> ParseExprResultFn {
-        let mut expression = self.ternary()?;
+        let mut expression = self.assignment()?;
         while self.match_token(&[TT::Comma]) {
-            let right = self.ternary()?;
+            let right = self.assignment()?;
             expression = Expression::Comma {
                 left: Box::new(expression),
                 right: Box::new(right),
             };
+        }
+
+        Ok(expression)
+    }
+
+    fn assignment(&mut self) -> ParseExprResultFn {
+        let mut expression = self.ternary()?;
+        if self.match_token(&[TT::Equal]) {
+            let value = self.assignment()?;
+
+            if let Expression::Variable(name) = expression {
+                expression = Expression::Assignment {
+                    name,
+                    value: Box::new(value),
+                }
+            } else {
+                return Err(LoxError::Parse {
+                    message: String::from("invalid assignment target"),
+                });
+            }
         }
 
         Ok(expression)
@@ -368,6 +401,10 @@ mod tests {
                 operator: normalize_token(operator),
                 right: Box::new(normalize_expression(right)),
             },
+            Expression::Assignment { name, value } => Expression::Assignment {
+                name: normalize_token(name),
+                value: Box::new(normalize_expression(value)),
+            },
             Expression::Unary { operator, right } => Expression::Unary {
                 operator: normalize_token(operator),
                 right: Box::new(normalize_expression(right)),
@@ -399,6 +436,14 @@ mod tests {
                 name: name.clone(),
                 initializer: normalize_expression(initializer),
             },
+            Statement::Block(statements) => {
+                let mut normalized_statements = vec![];
+                for statement in statements {
+                    let normalized_statement = normalize_statement(statement);
+                    normalized_statements.push(normalized_statement);
+                }
+                Statement::Block(normalized_statements)
+            }
             Statement::Expression(expression) => {
                 Statement::Expression(normalize_expression(expression))
             }

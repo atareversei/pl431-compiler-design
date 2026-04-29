@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::{
     environment::Environment,
     error::LoxError,
@@ -37,10 +39,11 @@ impl Interpreter {
 
     // TODO: read more about Rust best practice and rewrite this function
     pub fn interpret(&mut self) -> Result<ExecutionContext, LoxError> {
-        let indices: Vec<_> = (0..self.statements.len()).collect();
         let mut value = None;
-        for i in indices {
-            value = self.execute_statement(i)?;
+        let statements = self.statements.clone();
+
+        for statement in &statements {
+            value = self.execute_statement(statement)?;
         }
 
         Ok(ExecutionContext {
@@ -49,14 +52,28 @@ impl Interpreter {
         })
     }
 
-    pub fn execute_statement(&mut self, statement_index: usize) -> ExecutionResult {
-        match &self.statements[statement_index] {
+    pub fn execute_statement(&mut self, statement: &Statement) -> ExecutionResult {
+        match statement {
             Statement::Var { name, initializer } => {
                 let mut value = Value::Null;
                 if &Expression::Literal(LiteralValue::Null) != initializer {
                     value = self.evaluate_expression(initializer)?;
                 }
                 self.environment.define(name.lexeme.clone(), value);
+                Ok(None)
+            }
+            Statement::Block(statements) => {
+                let new_environment =
+                    Environment::new(Some(Rc::new(RefCell::new(self.environment.clone()))));
+
+                let previous_environment =
+                    std::mem::replace(&mut self.environment, new_environment);
+
+                for statement in statements {
+                    self.execute_statement(statement)?;
+                }
+
+                self.environment = previous_environment;
                 Ok(None)
             }
             Statement::Expression(expression) => {
@@ -71,14 +88,15 @@ impl Interpreter {
         }
     }
 
-    pub fn evaluate_expression(&self, expression: &Expression) -> EvaluationResult {
+    pub fn evaluate_expression(&mut self, expression: &Expression) -> EvaluationResult {
         match expression {
             Expression::Ternary {
                 condition,
                 true_branch,
                 false_branch,
             } => {
-                if self.is_truthy(self.evaluate_expression(condition)?) {
+                let condition = self.evaluate_expression(condition)?;
+                if self.is_truthy(condition) {
                     self.evaluate_expression(true_branch)
                 } else {
                     self.evaluate_expression(false_branch)
@@ -179,6 +197,11 @@ impl Interpreter {
                     _ => unreachable!("binary only allows '+', '-', '*', and '/' as operators"),
                 }
             }
+            Expression::Assignment { name, value } => {
+                let value = self.evaluate_expression(value)?;
+                self.environment.assign(&name.lexeme, value.clone())?;
+                Ok(value)
+            }
             Expression::Unary { operator, right } => {
                 let right_value = self.evaluate_expression(right)?;
 
@@ -208,7 +231,7 @@ impl Interpreter {
                 LiteralValue::String(s) => Ok(Value::String(s.clone())),
                 LiteralValue::Null => Ok(Value::Null),
             },
-            Expression::Variable(name) => self.environment.get(name.lexeme.clone()),
+            Expression::Variable(name) => self.environment.get(&name.lexeme),
         }
     }
 

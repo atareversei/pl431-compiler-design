@@ -17,6 +17,7 @@ pub fn ast(expr: &Expression) -> String {
             operator,
             right,
         } => format!("({} {} {})", operator.lexeme, ast(left), ast(right)),
+        Expression::Assignment { name: _, value } => format!("{:?}", value),
         Expression::Comma { left, right } => format!("({}, {})", ast(left), ast(right)),
         Expression::Unary { operator, right } => {
             format!("({} {})", operator.lexeme, ast(right))

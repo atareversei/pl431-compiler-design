@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::token::Token;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Ternary {
         condition: Box<Expression>,
@@ -13,6 +13,10 @@ pub enum Expression {
         left: Box<Expression>,
         operator: Token,
         right: Box<Expression>,
+    },
+    Assignment {
+        name: Token,
+        value: Box<Expression>,
     },
     Unary {
         operator: Token,
