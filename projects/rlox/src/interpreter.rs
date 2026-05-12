@@ -56,9 +56,25 @@ impl Interpreter {
         match statement {
             Statement::Var { name, initializer } => {
                 let mut value = Value::Null;
-                if &Expression::Literal(LiteralValue::Null) != initializer {
-                    value = self.evaluate_expression(initializer)?;
+                // handle uninitialized variable evaluation
+                if initializer.is_none() {
+                    return Err(LoxError::Runtime {
+                        message: format!(
+                            "variable {} accessed without assigning any value to it",
+                            name.lexeme
+                        ),
+                    });
+                };
+
+                // handle value evaluation if value is not set to LiteralValue::Null
+                if &Some(Expression::Literal(LiteralValue::Null)) != initializer {
+                    value = self.evaluate_expression(
+                        initializer
+                            .as_ref()
+                            .expect("expected an expression other than null"),
+                    )?;
                 }
+
                 self.environment.define(name.lexeme.clone(), value);
                 Ok(None)
             }
@@ -269,5 +285,55 @@ impl Interpreter {
                 message: format!("both operands must be a number for '{}'", operator),
             }),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{fs, path::PathBuf};
+
+    use crate::{lexer::Lexer, parser::Parser};
+
+    use super::*;
+
+    fn get_test_file_path(filename: &str) -> PathBuf {
+        let manifest_dir =
+            std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR should be set");
+
+        PathBuf::from(manifest_dir)
+            .join("tests")
+            .join("examples")
+            .join(filename)
+    }
+
+    fn get_result(path: &str) -> Result<(), LoxError> {
+        let path = get_test_file_path(path);
+        let bytes = fs::read(&path).map_err(|err| LoxError::Scan {
+            message: format!(
+                "couldn't read file: /tests/examples/{} - error: {err}",
+                path.display()
+            ),
+        })?;
+        let src = String::from_utf8_lossy(&bytes);
+        let mut lexer = Lexer::new(&src);
+        let lex_result = lexer.lex_tokens();
+        let mut parser = Parser::new(&lex_result.tokens);
+        let parse_result = parser.parse()?;
+        let environment = Environment::new(None);
+        let mut interpreter = Interpreter::new(parse_result, environment);
+        interpreter.interpret()?;
+        Ok(())
+    }
+
+    #[test]
+    fn block_and_scope() {
+        let result = get_result("block.rlox");
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn uninitialized_variable() {
+        let result = get_result("uninitialized.error.rlox");
+        assert!(matches!(result, Err(LoxError::Runtime { .. })));
     }
 }

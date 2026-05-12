@@ -1,0 +1,11 @@
+var a = 12;
+var b = null;
+var c;
+var d;
+
+a = 13;
+print a;
+print b;
+c = "initialized";
+print c;
+print d;

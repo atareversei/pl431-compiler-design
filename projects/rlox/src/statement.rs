@@ -4,7 +4,7 @@ use crate::{expression::Expression, token::Token};
 pub enum Statement {
     Var {
         name: Token,
-        initializer: Expression,
+        initializer: Option<Expression>,
     },
     Block(Vec<Statement>),
     Expression(Expression),

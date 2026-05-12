@@ -56,9 +56,9 @@ impl<'a> Parser<'a> {
         self.consume(TT::Identifier, String::from("expect variable name"))?;
         let name = self.previous().clone();
 
-        let mut initializer = Expression::Literal(LiteralValue::Null);
+        let mut initializer = None;
         if self.match_token(&[TT::Equal]) {
-            initializer = self.expression()?;
+            initializer = Some(self.expression()?);
         }
 
         self.consume(
@@ -432,9 +432,15 @@ mod tests {
 
     fn normalize_statement(statement: &Statement) -> Statement {
         match statement {
-            Statement::Var { name, initializer } => Statement::Var {
-                name: name.clone(),
-                initializer: normalize_expression(initializer),
+            Statement::Var { name, initializer } => match initializer {
+                Some(expr) => Statement::Var {
+                    name: name.clone(),
+                    initializer: Some(normalize_expression(expr)),
+                },
+                None => Statement::Var {
+                    name: name.clone(),
+                    initializer: None,
+                },
             },
             Statement::Block(statements) => {
                 let mut normalized_statements = vec![];
