@@ -23,14 +23,14 @@ pub enum LoxError {
 impl fmt::Display for LoxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LoxError::Scan { message } => write!(f, "{}", message),
+            LoxError::Scan { message } => write!(f, "ScanError: {}", message),
             LoxError::Lex {
                 message,
                 offset,
                 length,
-            } => write!(f, "{} {}:{}", message, offset, length),
-            LoxError::Parse { message } => write!(f, "{}", message),
-            LoxError::Runtime { message } => write!(f, "{}", message),
+            } => write!(f, "LexError: {} {}:{}", message, offset, length),
+            LoxError::Parse { message } => write!(f, "ParseError: {}", message),
+            LoxError::Runtime { message } => write!(f, "RuntimeError: {}", message),
         }
     }
 }

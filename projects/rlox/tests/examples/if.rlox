@@ -1,0 +1,10 @@
+var a = 10;
+if (a > 12) {
+    a = "greater than 12";
+} else if (a > 8) {
+    a = "greater than 8 and less than equal to 12";
+} else {
+    a = "less than equal to 8";
+}
+
+print a;

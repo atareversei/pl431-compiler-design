@@ -9,7 +9,7 @@ use crate::{
 };
 
 pub struct ExecutionContext {
-    pub environment: Environment,
+    pub environment: Rc<RefCell<Environment>>,
     pub last_expr_value: Option<Value>,
 }
 pub type ExecutionResult = Result<Option<Value>, LoxError>;
@@ -25,7 +25,7 @@ pub enum Value {
 pub type EvaluationResult = Result<Value, LoxError>;
 
 pub struct Interpreter {
-    environment: Environment,
+    environment: Rc<RefCell<Environment>>,
     statements: Vec<Statement>,
 }
 
@@ -33,7 +33,7 @@ impl Interpreter {
     pub fn new(statements: Vec<Statement>, environment: Environment) -> Self {
         Interpreter {
             statements,
-            environment,
+            environment: Rc::new(RefCell::new(environment)),
         }
     }
 
@@ -54,6 +54,16 @@ impl Interpreter {
 
     pub fn execute_statement(&mut self, statement: &Statement) -> ExecutionResult {
         match statement {
+            Statement::If { cond, body, elze } => {
+                let cond = self.evaluate_expression(cond)?;
+                let cond = self.is_truthy(cond);
+                if cond {
+                    self.execute_statement(body)?;
+                } else if let Some(e) = elze.as_ref() {
+                    self.execute_statement(e.as_ref())?;
+                }
+                Ok(None)
+            }
             Statement::Var { name, initializer } => {
                 let mut value = Value::Null;
                 // handle uninitialized variable evaluation
@@ -75,21 +85,22 @@ impl Interpreter {
                     )?;
                 }
 
-                self.environment.define(name.lexeme.clone(), value);
+                self.environment
+                    .borrow_mut()
+                    .define(name.lexeme.clone(), value);
                 Ok(None)
             }
             Statement::Block(statements) => {
-                let new_environment =
-                    Environment::new(Some(Rc::new(RefCell::new(self.environment.clone()))));
+                let local_env = Environment::new_enclosed(self.environment.clone());
+                let local_env_rc = Rc::new(RefCell::new(local_env));
 
-                let previous_environment =
-                    std::mem::replace(&mut self.environment, new_environment);
+                let prev_env = std::mem::replace(&mut self.environment, local_env_rc);
 
                 for statement in statements {
                     self.execute_statement(statement)?;
                 }
 
-                self.environment = previous_environment;
+                self.environment = prev_env;
                 Ok(None)
             }
             Statement::Expression(expression) => {
@@ -215,7 +226,9 @@ impl Interpreter {
             }
             Expression::Assignment { name, value } => {
                 let value = self.evaluate_expression(value)?;
-                self.environment.assign(&name.lexeme, value.clone())?;
+                self.environment
+                    .borrow_mut()
+                    .assign(&name.lexeme, value.clone())?;
                 Ok(value)
             }
             Expression::Unary { operator, right } => {
@@ -247,7 +260,7 @@ impl Interpreter {
                 LiteralValue::String(s) => Ok(Value::String(s.clone())),
                 LiteralValue::Null => Ok(Value::Null),
             },
-            Expression::Variable(name) => self.environment.get(&name.lexeme),
+            Expression::Variable(name) => self.environment.borrow_mut().get(&name.lexeme),
         }
     }
 
@@ -319,7 +332,7 @@ mod tests {
         let lex_result = lexer.lex_tokens();
         let mut parser = Parser::new(&lex_result.tokens);
         let parse_result = parser.parse()?;
-        let environment = Environment::new(None);
+        let environment = Environment::new();
         let mut interpreter = Interpreter::new(parse_result, environment);
         interpreter.interpret()?;
         Ok(())

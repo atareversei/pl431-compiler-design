@@ -13,9 +13,16 @@ pub struct Environment {
 }
 
 impl Environment {
-    pub fn new(enclosing: Option<Rc<RefCell<Environment>>>) -> Self {
+    pub fn new() -> Self {
         Environment {
-            enclosing,
+            enclosing: None,
+            values: HashMap::new(),
+        }
+    }
+
+    pub fn new_enclosed(enclosing: Rc<RefCell<Environment>>) -> Self {
+        Environment {
+            enclosing: Some(enclosing),
             values: HashMap::new(),
         }
     }
@@ -25,15 +32,16 @@ impl Environment {
     }
 
     pub fn assign(&mut self, name: &str, value: Value) -> Result<(), LoxError> {
-        if let Some(value) = self.values.get(name) {
-            self.values.insert(name.to_string(), value.clone());
+        if self.values.contains_key(name) {
+            self.values.insert(name.to_string(), value);
             Ok(())
-        } else if let Some(ref enclosing) = self.enclosing {
-            enclosing.borrow_mut().assign(name, value)
         } else {
-            Err(LoxError::Runtime {
-                message: format!("undefined variable: '{}'", name),
-            })
+            match &self.enclosing {
+                Some(enclosing) => enclosing.borrow_mut().assign(name, value),
+                None => Err(LoxError::Runtime {
+                    message: format!("undefined variable: '{}'", name),
+                }),
+            }
         }
     }
 

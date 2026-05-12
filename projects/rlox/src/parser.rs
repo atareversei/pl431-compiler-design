@@ -73,6 +73,8 @@ impl<'a> Parser<'a> {
             return self.print_statement();
         } else if self.match_token(&[TT::LBrace]) {
             return self.block_statement();
+        } else if self.match_token(&[TT::If]) {
+            return self.if_statement();
         }
         self.expression_statement()
     }
@@ -93,6 +95,39 @@ impl<'a> Parser<'a> {
 
         self.consume(TT::RBrace, String::from("expect '}' after block"))?;
         Ok(Statement::Block(statements))
+    }
+
+    fn if_statement(&mut self) -> ParseStmtResultFn {
+        self.consume(TT::LParen, String::from("expect '(' after if statement"))?;
+        let cond = self.expression()?;
+        self.consume(
+            TT::RParen,
+            String::from("expect ')' after if statement condition"),
+        )?;
+
+        self.consume(
+            TT::LBrace,
+            String::from("expect '{' after if statement condition"),
+        )?;
+
+        let body = self.block_statement()?;
+        let mut elze: Option<Box<Statement>> = None;
+        if self.match_token(&[TT::Else]) {
+            if self.match_token(&[TT::If]) {
+                let stmt = self.if_statement()?;
+                elze = Some(Box::new(stmt));
+            } else {
+                self.consume(TT::LBrace, String::from("expect '{' after 'else'"))?;
+                let stmt = self.block_statement()?;
+                elze = Some(Box::new(stmt));
+            }
+        };
+
+        Ok(Statement::If {
+            cond,
+            body: Box::new(body),
+            elze,
+        })
     }
 
     fn expression_statement(&mut self) -> ParseStmtResultFn {
@@ -432,6 +467,13 @@ mod tests {
 
     fn normalize_statement(statement: &Statement) -> Statement {
         match statement {
+            Statement::If { cond, body, elze } => Statement::If {
+                cond: normalize_expression(cond),
+                body: Box::new(normalize_statement(body.as_ref())),
+                elze: elze
+                    .as_ref()
+                    .map(|e| Box::new(normalize_statement(e.as_ref()))),
+            },
             Statement::Var { name, initializer } => match initializer {
                 Some(expr) => Statement::Var {
                     name: name.clone(),

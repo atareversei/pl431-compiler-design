@@ -7,6 +7,8 @@ use std::{
     io::{self, Write},
 };
 
+// TODO: add debug features that are enabled with flags
+
 pub fn run() -> Result<(), Vec<LoxError>> {
     let args: Vec<String> = env::args().collect();
     if args.len() == 1 {
@@ -21,7 +23,7 @@ pub fn run() -> Result<(), Vec<LoxError>> {
 }
 
 fn run_repl() -> Result<(), Vec<LoxError>> {
-    let mut environment = Environment::new(None);
+    let mut environment = Environment::new();
     let stdin = io::stdin();
     let mut line = String::new();
 
@@ -50,7 +52,7 @@ fn run_repl() -> Result<(), Vec<LoxError>> {
         let mut interpreter = Interpreter::new(statements, environment);
         match interpreter.interpret() {
             Ok(ctx) => {
-                environment = ctx.environment;
+                environment = ctx.environment.borrow().clone();
 
                 if let Some(v) = ctx.last_expr_value {
                     println!("{:?}", v);
@@ -83,11 +85,11 @@ fn run_file(path: &str) -> Result<(), Vec<LoxError>> {
         }
     };
 
-    let environment = Environment::new(None);
+    let environment = Environment::new();
     let mut interpreter = Interpreter::new(statements, environment);
     match interpreter.interpret() {
-        Ok(_) => {
-            println!("program executed successfully")
+        Ok(ctx) => {
+            println!("program executed successfully");
         }
         Err(err) => {
             println!("{err}");
