@@ -231,6 +231,21 @@ impl Interpreter {
                     .assign(&name.lexeme, value.clone())?;
                 Ok(value)
             }
+            Expression::Logical {
+                left,
+                operator,
+                right,
+            } => {
+                let left = self.evaluate_expression(left)?;
+                if operator.token_type == TT::PipePipe && self.is_truthy(left.clone()) {
+                    return Ok(left);
+                }
+                if operator.token_type == TT::AmpAmp && !self.is_truthy(left.clone()) {
+                    return Ok(left);
+                }
+                let right = self.evaluate_expression(right)?;
+                Ok(right)
+            }
             Expression::Unary { operator, right } => {
                 let right_value = self.evaluate_expression(right)?;
 

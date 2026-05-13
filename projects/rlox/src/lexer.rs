@@ -13,7 +13,6 @@ use std::sync::LazyLock;
 static KEYWORDS: LazyLock<HashMap<&'static str, TT>> = LazyLock::new(|| {
     let mut m = HashMap::new();
     m.insert("import", TT::Import);
-    m.insert("and", TT::And);
     m.insert("class", TT::Class);
     m.insert("else", TT::Else);
     m.insert("false", TT::False);
@@ -21,7 +20,6 @@ static KEYWORDS: LazyLock<HashMap<&'static str, TT>> = LazyLock::new(|| {
     m.insert("func", TT::Func);
     m.insert("if", TT::If);
     m.insert("null", TT::Null);
-    m.insert("or", TT::Or);
     m.insert("return", TT::Return);
     m.insert("super", TT::Super);
     m.insert("this", TT::This);
@@ -103,6 +101,8 @@ impl<'a> Lexer<'a> {
             '=' => Ok(Some(self.go_together('=', TT::EqualEqual, TT::Equal))),
             '<' => Ok(Some(self.go_together('=', TT::LessEqual, TT::Less))),
             '>' => Ok(Some(self.go_together('=', TT::GreaterEqual, TT::Greater))),
+            '&' => Ok(Some(self.go_together('&', TT::AmpAmp, TT::Amp))),
+            '|' => Ok(Some(self.go_together('|', TT::PipePipe, TT::Pipe))),
             '/' => self.comment(),
             '"' => self.string(),
             '0'..='9' => self.number(),
@@ -437,7 +437,7 @@ mod tests {
         }
 
         // set status if sum function is not working correctly
-        if (sum(5,6) != 11 or false {
+        if (sum(5,6) != 11 || false {
             status = \"panic\"
         }
 
@@ -482,7 +482,7 @@ mod tests {
                 TT::RParen,
                 TT::BangEqual,
                 TT::Number,
-                TT::Or,
+                TT::PipePipe,
                 TT::False,
                 TT::LBrace,
                 TT::Identifier,

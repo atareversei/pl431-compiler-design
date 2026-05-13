@@ -54,6 +54,10 @@ pub enum TokenType {
     GreaterEqual,
     Less,
     LessEqual,
+    Amp,
+    AmpAmp,
+    Pipe,
+    PipePipe,
 
     // Literals.
     Identifier,
@@ -62,8 +66,6 @@ pub enum TokenType {
 
     // Keywords.
     Import,
-    And,
-    Or,
     If,
     Else,
     Var,
@@ -118,12 +120,14 @@ impl TokenType {
             TokenType::GreaterEqual => ">=",
             TokenType::Less => "<",
             TokenType::LessEqual => "<=",
+            TokenType::Amp => "&",
+            TokenType::AmpAmp => "&&",
+            TokenType::Pipe => "|",
+            TokenType::PipePipe => "||",
             TokenType::Identifier => "identifier",
             TokenType::String => "string",
             TokenType::Number => "number",
             TokenType::Import => "import",
-            TokenType::And => "and",
-            TokenType::Or => "or",
             TokenType::If => "if",
             TokenType::Else => "else",
             TokenType::Var => "var",

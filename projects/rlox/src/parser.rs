@@ -1,6 +1,6 @@
 use crate::{
     error::LoxError,
-    expression::{Expression, LiteralValue},
+    expression::{self, Expression, LiteralValue},
     statement::Statement,
     token::{Token, TokenType as TT},
 };
@@ -174,7 +174,7 @@ impl<'a> Parser<'a> {
     }
 
     fn ternary(&mut self) -> ParseExprResultFn {
-        let mut expression = self.equality()?;
+        let mut expression = self.logical_or()?;
         if self.match_token(&[TT::Question]) {
             let t = self.expression()?;
 
@@ -184,6 +184,37 @@ impl<'a> Parser<'a> {
                 condition: Box::new(expression),
                 true_branch: Box::new(t),
                 false_branch: Box::new(f),
+            };
+        }
+
+        Ok(expression)
+    }
+
+    fn logical_or(&mut self) -> ParseExprResultFn {
+        let mut expression = self.logical_and()?;
+        while self.match_token(&[TT::PipePipe]) {
+            let op = self.previous().clone();
+            let right = self.logical_and()?;
+
+            expression = Expression::Logical {
+                left: Box::new(expression),
+                operator: op,
+                right: Box::new(right),
+            }
+        }
+        Ok(expression)
+    }
+
+    fn logical_and(&mut self) -> ParseExprResultFn {
+        let mut expression = self.equality()?;
+        while self.match_token(&[TT::AmpAmp]) {
+            let op = self.previous().clone();
+            let right = self.equality()?;
+
+            expression = Expression::Logical {
+                left: Box::new(expression),
+                operator: op,
+                right: Box::new(right),
             };
         }
 
@@ -428,6 +459,11 @@ mod tests {
     fn normalize_expression(expression: &Expression) -> Expression {
         match expression {
             Expression::Binary {
+                left,
+                operator,
+                right,
+            }
+            | Expression::Logical {
                 left,
                 operator,
                 right,

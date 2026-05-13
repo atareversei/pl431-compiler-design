@@ -14,6 +14,11 @@ pub enum Expression {
         operator: Token,
         right: Box<Expression>,
     },
+    Logical {
+        left: Box<Expression>,
+        operator: Token,
+        right: Box<Expression>,
+    },
     Assignment {
         name: Token,
         value: Box<Expression>,
