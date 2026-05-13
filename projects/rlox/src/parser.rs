@@ -75,6 +75,8 @@ impl<'a> Parser<'a> {
             return self.block_statement();
         } else if self.match_token(&[TT::If]) {
             return self.if_statement();
+        } else if self.match_token(&[TT::For]) {
+            return self.for_statement();
         }
         self.expression_statement()
     }
@@ -98,12 +100,7 @@ impl<'a> Parser<'a> {
     }
 
     fn if_statement(&mut self) -> ParseStmtResultFn {
-        self.consume(TT::LParen, String::from("expect '(' after if statement"))?;
         let cond = self.expression()?;
-        self.consume(
-            TT::RParen,
-            String::from("expect ')' after if statement condition"),
-        )?;
 
         self.consume(
             TT::LBrace,
@@ -128,6 +125,77 @@ impl<'a> Parser<'a> {
             body: Box::new(body),
             elze,
         })
+    }
+
+    fn for_statement(&mut self) -> ParseStmtResultFn {
+        let mut initializer: Option<Statement> = None;
+        let mut cond: Expression = Expression::Literal(LiteralValue::True);
+        let mut increment: Option<Expression> = None;
+
+        // handles `for {}` infinite loop case
+        if self.match_token(&[TT::LBrace]) {
+            let body = self.block_statement()?;
+            return Ok(Statement::For {
+                cond,
+                body: Box::new(body),
+            });
+        }
+
+        if self.match_token(&[TT::Var]) {
+            initializer = Some(self.var_declaration()?);
+        } else if self.match_token(&[TT::SemiColon]) {
+            initializer = None;
+        } else {
+            // handles `for cond {}` while-like loops
+            cond = self.expression()?;
+            if self.match_token(&[TT::LBrace]) {
+                let body = self.block_statement()?;
+                return Ok(Statement::For {
+                    cond,
+                    body: Box::new(body),
+                });
+            }
+            return Err(LoxError::Parse {
+                message: String::from(
+                    "expect '}' after condition expression of conditional for loops ",
+                ),
+            });
+        }
+
+        if self.match_token(&[TT::LBrace]) {
+            return Err(LoxError::Parse {
+                message: String::from("expected increment expression"),
+            });
+        } else if self.match_token(&[TT::SemiColon]) {
+        } else {
+            cond = self.expression()?;
+            self.consume(
+                TT::SemiColon,
+                String::from("expected ';' after condition expression"),
+            )?;
+        }
+
+        if self.peek().token_type != TT::LBrace {
+            increment = Some(self.expression()?);
+        }
+
+        self.consume(TT::LBrace, String::from("expected '{' before 'for' body"))?;
+        let mut body = self.block_statement()?;
+
+        if let Some(inc) = increment {
+            body = Statement::Block(vec![body, Statement::Expression(inc)]);
+        }
+
+        let mut for_statement = Statement::For {
+            cond,
+            body: Box::new(body),
+        };
+
+        if let Some(init) = initializer {
+            for_statement = Statement::Block(vec![init, for_statement]);
+        };
+
+        Ok(for_statement)
     }
 
     fn expression_statement(&mut self) -> ParseStmtResultFn {
@@ -331,8 +399,8 @@ impl<'a> Parser<'a> {
                 return Ok(Expression::Grouping(Box::new(expression)));
             }
             TT::Identifier => Ok(Expression::Variable(self.previous().clone())),
-            _ => Err(LoxError::Parse {
-                message: String::from("expect expression"),
+            unknown => Err(LoxError::Parse {
+                message: format!("expect expression got {}", unknown),
             }),
         }
     }
@@ -519,6 +587,10 @@ mod tests {
                     name: name.clone(),
                     initializer: None,
                 },
+            },
+            Statement::For { cond, body } => Statement::For {
+                cond: normalize_expression(cond),
+                body: Box::new(normalize_statement(body)),
             },
             Statement::Block(statements) => {
                 let mut normalized_statements = vec![];

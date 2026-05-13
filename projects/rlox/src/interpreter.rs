@@ -64,6 +64,19 @@ impl Interpreter {
                 }
                 Ok(None)
             }
+            Statement::For { cond, body } => {
+                loop {
+                    let cond = self.evaluate_expression(cond)?;
+                    let cond = self.is_truthy(cond);
+                    if cond {
+                        self.execute_statement(body)?;
+                    } else {
+                        break;
+                    }
+                }
+
+                Ok(None)
+            }
             Statement::Var { name, initializer } => {
                 let mut value = Value::Null;
                 // handle uninitialized variable evaluation

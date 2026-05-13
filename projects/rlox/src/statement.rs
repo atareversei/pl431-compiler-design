@@ -11,6 +11,10 @@ pub enum Statement {
         name: Token,
         initializer: Option<Expression>,
     },
+    For {
+        cond: Expression,
+        body: Box<Statement>,
+    },
     Block(Vec<Statement>),
     Expression(Expression),
     Print(Expression), // TODO: move to standard library
