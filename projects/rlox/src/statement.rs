@@ -12,10 +12,13 @@ pub enum Statement {
         initializer: Option<Expression>,
     },
     For {
+        increment: Option<Expression>,
         cond: Expression,
         body: Box<Statement>,
     },
     Block(Vec<Statement>),
     Expression(Expression),
     Print(Expression), // TODO: move to standard library
+    Break,
+    Continue,
 }

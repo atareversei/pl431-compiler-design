@@ -26,6 +26,8 @@ static KEYWORDS: LazyLock<HashMap<&'static str, TT>> = LazyLock::new(|| {
     m.insert("true", TT::True);
     m.insert("var", TT::Var);
     m.insert("print", TT::Print); // TODO: remove print statement
+    m.insert("break", TT::Break);
+    m.insert("continue", TT::Continue);
     m
 });
 

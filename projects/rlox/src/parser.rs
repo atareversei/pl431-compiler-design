@@ -77,6 +77,10 @@ impl<'a> Parser<'a> {
             return self.if_statement();
         } else if self.match_token(&[TT::For]) {
             return self.for_statement();
+        } else if self.match_token(&[TT::Break]) {
+            return self.break_statement();
+        } else if self.match_token(&[TT::Continue]) {
+            return self.continue_statement();
         }
         self.expression_statement()
     }
@@ -136,6 +140,7 @@ impl<'a> Parser<'a> {
         if self.match_token(&[TT::LBrace]) {
             let body = self.block_statement()?;
             return Ok(Statement::For {
+                increment,
                 cond,
                 body: Box::new(body),
             });
@@ -151,6 +156,7 @@ impl<'a> Parser<'a> {
             if self.match_token(&[TT::LBrace]) {
                 let body = self.block_statement()?;
                 return Ok(Statement::For {
+                    increment,
                     cond,
                     body: Box::new(body),
                 });
@@ -182,11 +188,12 @@ impl<'a> Parser<'a> {
         self.consume(TT::LBrace, String::from("expected '{' before 'for' body"))?;
         let mut body = self.block_statement()?;
 
-        if let Some(inc) = increment {
-            body = Statement::Block(vec![body, Statement::Expression(inc)]);
-        }
+        // if let Some(inc) = increment {
+        //     body = Statement::Block(vec![body, Statement::Expression(inc)]);
+        // }
 
         let mut for_statement = Statement::For {
+            increment,
             cond,
             body: Box::new(body),
         };
@@ -196,6 +203,16 @@ impl<'a> Parser<'a> {
         };
 
         Ok(for_statement)
+    }
+
+    fn break_statement(&mut self) -> ParseStmtResultFn {
+        self.consume(TT::SemiColon, String::from("expect ';' after statement"))?;
+        Ok(Statement::Break)
+    }
+
+    fn continue_statement(&mut self) -> ParseStmtResultFn {
+        self.consume(TT::SemiColon, String::from("expect ';' after statement"))?;
+        Ok(Statement::Continue)
     }
 
     fn expression_statement(&mut self) -> ParseStmtResultFn {
@@ -588,7 +605,12 @@ mod tests {
                     initializer: None,
                 },
             },
-            Statement::For { cond, body } => Statement::For {
+            Statement::For {
+                increment,
+                cond,
+                body,
+            } => Statement::For {
+                increment: increment.as_ref().map(|e| normalize_expression(&e)),
                 cond: normalize_expression(cond),
                 body: Box::new(normalize_statement(body)),
             },
@@ -604,6 +626,8 @@ mod tests {
                 Statement::Expression(normalize_expression(expression))
             }
             Statement::Print(expression) => Statement::Print(normalize_expression(expression)),
+            Statement::Break => Statement::Break,
+            Statement::Continue => Statement::Continue,
         }
     }
 

@@ -24,9 +24,17 @@ pub enum Value {
 }
 pub type EvaluationResult = Result<Value, LoxError>;
 
+enum LoopFlow {
+    Normal,
+    Break,
+    Continue,
+}
+
 pub struct Interpreter {
     environment: Rc<RefCell<Environment>>,
     statements: Vec<Statement>,
+    loop_depth: usize,
+    loop_flow: LoopFlow,
 }
 
 impl Interpreter {
@@ -34,6 +42,8 @@ impl Interpreter {
         Interpreter {
             statements,
             environment: Rc::new(RefCell::new(environment)),
+            loop_depth: 0,
+            loop_flow: LoopFlow::Normal,
         }
     }
 
@@ -64,17 +74,56 @@ impl Interpreter {
                 }
                 Ok(None)
             }
-            Statement::For { cond, body } => {
+            Statement::For {
+                increment,
+                cond,
+                body,
+            } => {
+                self.loop_depth += 1;
                 loop {
                     let cond = self.evaluate_expression(cond)?;
                     let cond = self.is_truthy(cond);
                     if cond {
                         self.execute_statement(body)?;
+
+                        match self.loop_flow {
+                            LoopFlow::Break => {
+                                self.loop_flow = LoopFlow::Normal;
+                                break;
+                            }
+                            LoopFlow::Continue => {
+                                self.loop_flow = LoopFlow::Normal;
+                            }
+                            _ => {}
+                        };
+
+                        if let Some(inc) = increment {
+                            self.evaluate_expression(inc)?;
+                        }
                     } else {
                         break;
                     }
                 }
+                self.loop_depth -= 1;
+                Ok(None)
+            }
+            Statement::Break => {
+                if self.loop_depth == 0 {
+                    return Err(LoxError::Runtime {
+                        message: String::from("cannot use 'break' outside of loop body"),
+                    });
+                }
+                self.loop_flow = LoopFlow::Break;
 
+                Ok(None)
+            }
+            Statement::Continue => {
+                if self.loop_depth == 0 {
+                    return Err(LoxError::Runtime {
+                        message: String::from("cannot use 'continue' outside of loop body"),
+                    });
+                }
+                self.loop_flow = LoopFlow::Continue;
                 Ok(None)
             }
             Statement::Var { name, initializer } => {
@@ -111,6 +160,10 @@ impl Interpreter {
 
                 for statement in statements {
                     self.execute_statement(statement)?;
+                    match self.loop_flow {
+                        LoopFlow::Break | LoopFlow::Continue => break,
+                        _ => {}
+                    }
                 }
 
                 self.environment = prev_env;
@@ -376,5 +429,11 @@ mod tests {
     fn uninitialized_variable() {
         let result = get_result("uninitialized.error.rlox");
         assert!(matches!(result, Err(LoxError::Runtime { .. })));
+    }
+
+    #[test]
+    fn loops() {
+        let result = get_result("loop.rlox");
+        assert_eq!(result, Ok(()));
     }
 }
