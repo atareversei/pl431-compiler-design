@@ -19,6 +19,11 @@ pub enum Expression {
         operator: Token,
         right: Box<Expression>,
     },
+    Call {
+        callee: Box<Expression>,
+        paren: Token,
+        arguments: Vec<Expression>,
+    },
     Assignment {
         name: Token,
         value: Box<Expression>,

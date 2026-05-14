@@ -12,6 +12,11 @@ pub fn ast(expr: &Expression) -> String {
             ast(true_branch),
             ast(false_branch)
         ),
+        Expression::Call {
+            callee,
+            paren,
+            arguments,
+        } => format!("<fn>"),
         Expression::Binary {
             left,
             operator,

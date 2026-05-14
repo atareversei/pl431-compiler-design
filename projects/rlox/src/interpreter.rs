@@ -290,6 +290,19 @@ impl Interpreter {
                     _ => unreachable!("binary only allows '+', '-', '*', and '/' as operators"),
                 }
             }
+            Expression::Call {
+                callee,
+                paren,
+                arguments,
+            } => {
+                let callee = self.evaluate_expression(callee)?;
+                let mut arguments: Vec<Value> = arguments
+                    .into_iter()
+                    .map(|arg| self.evaluate_expression(arg))
+                    .collect::<Result<_, _>>()?;
+                // TODO: learn more Rust and continue
+                Ok(Value::Null)
+            }
             Expression::Assignment { name, value } => {
                 let value = self.evaluate_expression(value)?;
                 self.environment

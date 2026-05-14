@@ -69,20 +69,15 @@ impl<'a> Parser<'a> {
     }
 
     fn statement(&mut self) -> ParseStmtResultFn {
-        if self.match_token(&[TT::Print]) {
-            return self.print_statement();
-        } else if self.match_token(&[TT::LBrace]) {
-            return self.block_statement();
-        } else if self.match_token(&[TT::If]) {
-            return self.if_statement();
-        } else if self.match_token(&[TT::For]) {
-            return self.for_statement();
-        } else if self.match_token(&[TT::Break]) {
-            return self.break_statement();
-        } else if self.match_token(&[TT::Continue]) {
-            return self.continue_statement();
+        match self.advance().token_type {
+            TT::Print => self.print_statement(),
+            TT::LBrace => self.block_statement(),
+            TT::If => self.if_statement(),
+            TT::For => self.for_statement(),
+            TT::Break => self.break_statement(),
+            TT::Continue => self.continue_statement(),
+            _ => self.expression_statement(),
         }
-        self.expression_statement()
     }
 
     fn print_statement(&mut self) -> ParseStmtResultFn {
@@ -389,7 +384,47 @@ impl<'a> Parser<'a> {
                 ),
             });
         }
-        self.primary()
+        self.call()
+    }
+
+    fn finish_call(&mut self, callee: Expression) -> ParseExprResultFn {
+        let mut arguments: Vec<Expression> = vec![];
+
+        if !self.check(TT::RParen) {
+            let expression = self.expression()?;
+            arguments.push(expression);
+            while self.match_token(&[TT::Comma]) {
+                let expression = self.expression()?;
+                if arguments.len() >= 255 {
+                    return Err(LoxError::Parse {
+                        message: String::from("can't have more than 255 arguments"),
+                    });
+                }
+                arguments.push(expression);
+            }
+        };
+
+        let paren = self.consume(TT::RParen, String::from("expect ')' after arguments"))?;
+
+        Ok(Expression::Call {
+            callee: Box::new(callee),
+            paren: paren.clone(),
+            arguments,
+        })
+    }
+
+    fn call(&mut self) -> ParseExprResultFn {
+        let mut expression = self.primary()?;
+
+        loop {
+            if self.match_token(&[TT::LParen]) {
+                expression = self.finish_call(expression)?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(expression)
     }
 
     fn primary(&mut self) -> ParseExprResultFn {
@@ -556,6 +591,15 @@ mod tests {
                 left: Box::new(normalize_expression(left)),
                 operator: normalize_token(operator),
                 right: Box::new(normalize_expression(right)),
+            },
+            Expression::Call {
+                callee,
+                paren,
+                arguments,
+            } => Expression::Call {
+                callee: Box::new(normalize_expression(callee)),
+                paren: normalize_token(paren),
+                arguments: arguments.iter().map(|a| normalize_expression(a)).collect(),
             },
             Expression::Assignment { name, value } => Expression::Assignment {
                 name: normalize_token(name),
