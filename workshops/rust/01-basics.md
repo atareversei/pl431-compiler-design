@@ -43,3 +43,40 @@ fn read_line() -> String {
     input
 }
 ```
+
+## Serialization and Deserialization
+
+There is a well known library for serialization:
+
+```sh
+cargo add serde -F derive # the language agnostic core
+cargo add serde_json      # the extension we need to add for a specific language
+```
+
+```rs
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct User {
+    pub username: String
+}
+
+fn main() {
+    let users_json = serde_json::to_string(&users);
+}
+```
+
+## Hashing the Passwords
+
+```sh
+cargo add sha2
+```
+
+```rs
+pub fn hash_password(pass: &str) -> String {
+    use sha2::Digest;
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(pass);
+    format!("{:X}", hasher.finalize())
+}
+```
