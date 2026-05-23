@@ -53,3 +53,68 @@ fn main() {
     println!("Sum is {sum}")
 }
 ```
+
+## Pattern: builder pattern
+
+```rs
+fn my_thread() {
+    println!("Hello from a thread named {}",
+        thread::current().name().unwrap()
+    );
+}
+
+
+fn main() {
+    thread::Builder::new()
+        .name("Named Thread".to_string())
+        .stack_size(std::mem::size_of::<usize>() * 4)
+        .spawn(my_thread)
+        .unwrap();
+}
+```
+
+## Pattern: scoped threads
+
+```rs
+fn main() {
+    const N_THREADS = 8;
+    let to_add: Vec<usize> = (0..5000).collect();
+    let chunks = to_add.chunks(N_THREADS);
+
+    thread::scoped(|s| {
+        let mut thread_handles = Vec::new();
+
+        for chunk in chunks {
+            let thread_handle = s.spawn(move || {
+                chunk.iter().sum::<u32>()
+            });
+            thread_handles.push(thread_handle);
+        }
+        thread_handles.into_iter().map(|h| h.join().unwrap()).sum::<u32>()
+    })
+}
+```
+
+## Atomics
+
+Rust checks data races more effectively than the Go language, up to the point that if someone reports the compiler didn't catch a data race scenario in their code, the Rust team would mark it as a bug and fix it.
+
+```rs
+static COUNTER: AtomicI32 = AtomicI32::new(0);
+
+fn main() {
+    let mut handles = Vec::new();
+    for _ in 1000 {
+        let handle = std::thread::spawn(|| {
+            for _ in 1000 {
+                COUNTER.fetch_add(1, Relaxed);
+            }
+        })
+        handles.push(handle);
+    }
+
+    handles.into_iter().for_each(|h| h.join().unwrap());
+    println!("{}", COUNTER.load(Relaxed));
+}
+
+```
