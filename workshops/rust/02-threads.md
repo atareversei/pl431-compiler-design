@@ -118,3 +118,124 @@ fn main() {
 }
 
 ```
+
+## Mutexes
+
+```rs
+use std::sync::Mutex;
+
+static NUMBERS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
+
+fn main() {
+    let mut handles = vec::new();
+
+    for _ in range 0..10 {
+        let handle = std::thread::spawn(move || {
+            let mut lock = NUMBERS.lock().unwrap();
+            lock.push();
+        });
+        handles.push(handle);
+    }
+
+    handles.into_iter.for_each(|h| h.join().unwrap());
+}
+
+```
+
+## ReadWrite Locks
+
+```rs
+static USERS: Lazy<RwLock<Vec<String>>> = Lazy::new(|| RwLock::new(build_users()));
+
+fn build_users() -> Vec<String> {
+    vec!["Ata".to_string()]
+}
+
+fn read_line() -> String {
+    let mut input = String::new()
+    std::io::stdin().read_line(&mut input).unwrap()
+    input.trim().to_string()
+}
+
+
+fn main() {
+    std::thread::spawn(|| {
+        loop {
+            println!("Current users (in a thread)");
+            let users = USERS.read().unwrap();
+            println!("{users:?}");
+            std::thread::sleep(std::time::Duration::from_secs(3));
+        }
+    });
+
+    loop {
+        println!("Enter a name to add to user list");
+        let input = read_line();
+        let mut lock = USERS.write().unwrap();
+        lock.push(input);
+    }
+}
+```
+
+## Deadlock, Panics, and Poisoning
+
+Rust won't do anything against deadlocking
+
+```rs
+fn main() {
+    let my_shared = Mutex::new(0);
+    let lock = my_shared.lock().unwrap(); // releases the lock when the scope ends
+    let lock = my_shared.lock().unwrap(); // deadlocks
+}
+```
+
+## Parking Threads
+
+```rs
+fn parkable_thread(n: u32) {
+    loop {
+        std::thread::park();
+        println!("Thread {n} is unparked")
+    }
+}
+
+fn main() {
+    let mut threads = Vec::new();
+    for i in 0..10 {
+        let handler = std::thread::spawn(move || {
+            parkable_thread(i);
+        })
+        threads.push(handler);
+    }
+
+    threads[5].thread().unpark();
+}
+```
+
+## Channels
+
+```rs
+use std::sync::mpsc; // multi producer single consumer
+
+enum Command {
+    SayHello, Quit
+}
+
+fn main() {
+    let (tx, rx) = mpsc::channel::<Command>();
+
+    let handle = std::thread::spawn(move || {
+        while let Ok(command) = rx.recv() {
+            match Command {
+                // do stuff...
+            }
+        }
+    });
+
+    for _ in 0..10 {
+        tx.send(Command::SayHello)
+    }
+
+    handle.join()
+}
+```
