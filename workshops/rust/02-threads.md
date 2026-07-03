@@ -239,3 +239,25 @@ fn main() {
     handle.join()
 }
 ```
+
+## Sending Functions
+
+```rs
+type Job = Box<dyn FnOnce() + Send +  'static>;
+
+fn hi_there() {
+    println!("Hi there");
+}
+
+fn main() {
+    let (tx, rx) = mspc::channel::<Job>();
+    let handle = std::thread::spawn(move || {
+        while let Ok(job) = rx.recv() {
+            job();
+        }
+    })
+    let job = || println!("hello from a closure");
+    tx.send(Box::new(hi_there)).unwrap();
+    tx.send(Box::new(job)).unwrap();
+}
+```
