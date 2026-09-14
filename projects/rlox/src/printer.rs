@@ -27,6 +27,11 @@ pub fn ast(expr: &Expression) -> String {
         Expression::Unary { operator, right } => {
             format!("({} {})", operator.lexeme, ast(right))
         }
+        Expression::Call {
+            callee,
+            paren,
+            arguments,
+        } => format!("<fn>"),
         Expression::Literal(v) => format!("{}", v),
         Expression::Grouping(inner) => format!("(group {})", ast(inner)),
         Expression::Variable(var) => format!("{}", var.lexeme),

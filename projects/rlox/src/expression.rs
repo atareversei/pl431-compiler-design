@@ -31,6 +31,11 @@ pub enum Expression {
         left: Box<Expression>,
         right: Box<Expression>,
     },
+    Call {
+        callee: Box<Expression>,
+        paren: Token,
+        arguments: Vec<Expression>,
+    },
     Variable(Token),
     Grouping(Box<Expression>),
     Literal(LiteralValue),

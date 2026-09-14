@@ -1,6 +1,7 @@
 use crate::environment::Environment;
 use crate::interpreter::Interpreter;
 use crate::lexer::Lexer;
+use crate::logger::Logger;
 use crate::{error::LoxError, parser::Parser};
 use std::{
     env, fs,
@@ -23,6 +24,13 @@ pub fn run() -> Result<(), Vec<LoxError>> {
 }
 
 fn run_repl() -> Result<(), Vec<LoxError>> {
+    let logger = Logger {
+        lexer_tokens: false,
+        parser_consumed_tokens: true,
+        parser_func_info: false,
+        parser_statements: false,
+    };
+
     let mut environment = Environment::new();
     let stdin = io::stdin();
     let mut line = String::new();
@@ -40,16 +48,15 @@ fn run_repl() -> Result<(), Vec<LoxError>> {
         let lex_result = lexer.lex_tokens();
         if lex_result.has_errors() {}
 
-        let mut parser = Parser::new(&lex_result.tokens);
-        let statements = match parser.parse() {
-            Ok(v) => v,
-            Err(err) => {
-                println!("{err}");
-                return Err(vec![err]);
-            }
-        };
+        let mut parser = Parser::new(&lex_result.tokens, &logger);
+        let parse_result = parser.parse();
+        if parse_result.has_errors() {
+            println!("execution stopped");
+            println!("Program Statements: {:?}", parse_result.statements);
+            return Err(parse_result.errors);
+        }
 
-        let mut interpreter = Interpreter::new(statements, environment);
+        let mut interpreter = Interpreter::new(parse_result.statements, environment);
         match interpreter.interpret() {
             Ok(ctx) => {
                 environment = ctx.environment.borrow().clone();
@@ -69,6 +76,14 @@ fn run_repl() -> Result<(), Vec<LoxError>> {
 }
 
 fn run_file(path: &str) -> Result<(), Vec<LoxError>> {
+    // TODO: add environmental variables
+    let logger = Logger {
+        lexer_tokens: false,
+        parser_consumed_tokens: true,
+        parser_func_info: false,
+        parser_statements: false,
+    };
+
     let bytes = fs::read(path).map_err(|err| vec![err.into()])?;
     let text = String::from_utf8_lossy(&bytes);
 
@@ -76,17 +91,16 @@ fn run_file(path: &str) -> Result<(), Vec<LoxError>> {
     let lex_result = lexer.lex_tokens();
     if lex_result.has_errors() {}
 
-    let mut parser = Parser::new(&lex_result.tokens);
-    let statements = match parser.parse() {
-        Ok(v) => v,
-        Err(err) => {
-            println!("{err}");
-            return Err(vec![err]);
-        }
-    };
+    let mut parser = Parser::new(&lex_result.tokens, &logger);
+    let parse_result = parser.parse();
+    if parse_result.has_errors() {
+        println!("execution stopped");
+        println!("Program Statements: {:?}", parse_result.statements);
+        return Err(parse_result.errors);
+    }
 
     let environment = Environment::new();
-    let mut interpreter = Interpreter::new(statements, environment);
+    let mut interpreter = Interpreter::new(parse_result.statements, environment);
     match interpreter.interpret() {
         Ok(ctx) => {
             println!("program executed successfully");

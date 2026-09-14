@@ -333,6 +333,19 @@ impl Interpreter {
                 self.evaluate_expression(left)?;
                 self.evaluate_expression(right)
             }
+            Expression::Call {
+                callee,
+                paren,
+                arguments,
+            } => {
+                let callee = self.evaluate_expression(callee)?;
+                let mut arguments: Vec<Value> = arguments
+                    .into_iter()
+                    .map(|arg| self.evaluate_expression(arg))
+                    .collect::<Result<_, _>>()?;
+                // TODO: Continue implementing
+                Ok(Value::Null)
+            }
             Expression::Grouping(expr) => self.evaluate_expression(expr),
             Expression::Literal(value) => match value {
                 LiteralValue::False => Ok(Value::Boolean(false)),
@@ -386,7 +399,7 @@ impl Interpreter {
 mod tests {
     use std::{fs, path::PathBuf};
 
-    use crate::{lexer::Lexer, parser::Parser};
+    use crate::{lexer::Lexer, logger::Logger, parser::Parser};
 
     use super::*;
 
@@ -411,10 +424,18 @@ mod tests {
         let src = String::from_utf8_lossy(&bytes);
         let mut lexer = Lexer::new(&src);
         let lex_result = lexer.lex_tokens();
-        let mut parser = Parser::new(&lex_result.tokens);
-        let parse_result = parser.parse()?;
+        let mut parser = Parser::new(
+            &lex_result.tokens,
+            &Logger {
+                lexer_tokens: false,
+                parser_consumed_tokens: false,
+                parser_statements: false,
+                parser_func_info: false,
+            },
+        );
+        let parse_result = parser.parse();
         let environment = Environment::new();
-        let mut interpreter = Interpreter::new(parse_result, environment);
+        let mut interpreter = Interpreter::new(parse_result.statements, environment);
         interpreter.interpret()?;
         Ok(())
     }
