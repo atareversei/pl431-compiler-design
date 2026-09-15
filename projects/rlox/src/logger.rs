@@ -1,4 +1,7 @@
 use core::fmt;
+use std::env;
+
+use crate::{logger, lox::Config};
 
 #[derive(Debug, Clone, Copy)]
 pub enum LogSection {
@@ -16,6 +19,15 @@ pub struct Logger {
 }
 
 impl Logger {
+    pub fn new(config: &Config) -> Self {
+        Logger {
+            lexer_tokens: false,
+            parser_consumed_tokens: config.log_parser_consumed_tokens,
+            parser_statements: config.log_parser_statements,
+            parser_func_info: config.log_parser_func_info,
+        }
+    }
+
     pub fn enabled(&self, section: LogSection) -> bool {
         match section {
             LogSection::LexerTokens => self.lexer_tokens,
@@ -41,3 +53,7 @@ macro_rules! log {
         }
     };
 }
+
+// #[macro_export] puts `log!` at the crate root.
+// This also makes it available through `logger`.
+pub use crate::log;

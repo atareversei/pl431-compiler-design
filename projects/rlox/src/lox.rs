@@ -1,36 +1,31 @@
 use crate::environment::Environment;
 use crate::interpreter::Interpreter;
 use crate::lexer::Lexer;
-use crate::logger::Logger;
+use crate::log;
+use crate::logger::{LogSection, Logger};
+use crate::lox::RunMode::File;
 use crate::{error::LoxError, parser::Parser};
 use std::{
     env, fs,
     io::{self, Write},
 };
 
-// TODO: add debug features that are enabled with flags
-
 pub fn run() -> Result<(), Vec<LoxError>> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() == 1 {
-        run_repl()
-    } else if args.len() == 2 {
-        run_file(&args[1])
-    } else {
-        Result::Err(vec![LoxError::Scan {
-            message: "Usage: rlox [script]".to_string(),
-        }])
+    let config = parse_args();
+
+    match config {
+        Ok(cfg) => {
+            let logger = Logger::new(&cfg);
+            match cfg.mode {
+                RunMode::Repl => run_repl(logger),
+                RunMode::File(files) => run_file(files, logger),
+            }
+        }
+        Err(err) => Err(vec![err]),
     }
 }
 
-fn run_repl() -> Result<(), Vec<LoxError>> {
-    let logger = Logger {
-        lexer_tokens: false,
-        parser_consumed_tokens: true,
-        parser_func_info: false,
-        parser_statements: false,
-    };
-
+fn run_repl(logger: Logger) -> Result<(), Vec<LoxError>> {
     let mut environment = Environment::new();
     let stdin = io::stdin();
     let mut line = String::new();
@@ -51,8 +46,6 @@ fn run_repl() -> Result<(), Vec<LoxError>> {
         let mut parser = Parser::new(&lex_result.tokens, &logger);
         let parse_result = parser.parse();
         if parse_result.has_errors() {
-            println!("execution stopped");
-            println!("Program Statements: {:?}", parse_result.statements);
             return Err(parse_result.errors);
         }
 
@@ -75,14 +68,9 @@ fn run_repl() -> Result<(), Vec<LoxError>> {
     Ok(())
 }
 
-fn run_file(path: &str) -> Result<(), Vec<LoxError>> {
-    // TODO: add environmental variables
-    let logger = Logger {
-        lexer_tokens: false,
-        parser_consumed_tokens: true,
-        parser_func_info: false,
-        parser_statements: false,
-    };
+fn run_file(paths: Vec<String>, logger: Logger) -> Result<(), Vec<LoxError>> {
+    // TODO: add multiple files support
+    let path = &paths[0];
 
     let bytes = fs::read(path).map_err(|err| vec![err.into()])?;
     let text = String::from_utf8_lossy(&bytes);
@@ -111,4 +99,69 @@ fn run_file(path: &str) -> Result<(), Vec<LoxError>> {
         }
     };
     Ok(())
+}
+
+pub enum RunMode {
+    Repl,
+    File(Vec<String>),
+}
+
+pub struct Config {
+    pub mode: RunMode,
+
+    pub log_parser_statements: bool,
+    pub log_parser_consumed_tokens: bool,
+    pub log_parser_func_info: bool,
+}
+
+pub fn parse_args() -> Result<Config, LoxError> {
+    let args: Vec<String> = env::args().skip(1).collect();
+
+    let mut config = Config {
+        mode: RunMode::Repl,
+        log_parser_consumed_tokens: false,
+        log_parser_statements: false,
+        log_parser_func_info: false,
+    };
+
+    for arg in args {
+        match arg.as_str() {
+            "--log-parser-consumed-tokens" => config.log_parser_consumed_tokens = true,
+            "--log-parser-statements" => config.log_parser_statements = true,
+            "--log-parser-func-info" => config.log_parser_func_info = true,
+            value if value.starts_with('-') => {
+                return Err(LoxError::Config {
+                    message: format!("undefined argument: {}", value),
+                });
+            }
+            path => {
+                let exists_result = fs::exists(path);
+
+                match exists_result {
+                    Ok(exists) => {
+                        if !exists {
+                            return Err(LoxError::Config {
+                                message: format!("file does not exists: {}", path),
+                            });
+                        }
+                        match &mut config.mode {
+                            RunMode::Repl => {
+                                config.mode = File(vec![path.to_string()]);
+                            }
+                            RunMode::File(files) => {
+                                files.push(path.to_string());
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        return Err(LoxError::Config {
+                            message: format!("filesystem error: {}", err),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(config)
 }

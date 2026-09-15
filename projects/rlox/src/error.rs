@@ -3,6 +3,9 @@ use std::io;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoxError {
+    Config {
+        message: String,
+    },
     Scan {
         message: String,
     },
@@ -23,6 +26,7 @@ pub enum LoxError {
 impl fmt::Display for LoxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            LoxError::Config { message } => write!(f, "ConfigError: {}", message),
             LoxError::Scan { message } => write!(f, "ScanError: {}", message),
             LoxError::Lex {
                 message,

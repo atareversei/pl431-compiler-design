@@ -67,18 +67,25 @@ impl<'a> Parser<'a> {
         let mut errors = vec![];
 
         while !self.is_at_end() {
-            self.log("----------------------------------------");
+            log!(self.logger, LogSection::ParserFuncInfo, "-------------");
             match self.declaration() {
                 Ok(s) => statements.push(s),
                 Err(e) => errors.push(e),
             }
         }
 
+        log!(
+            self.logger,
+            LogSection::ParserStatements,
+            "{:?}",
+            statements
+        );
+
         ParseResult { statements, errors }
     }
 
     fn declaration(&mut self) -> ParseStmtResultFn {
-        println!("declaration");
+        log!(self.logger, LogSection::ParserFuncInfo, "declaration");
         if self.match_token(&[TT::Var]) {
             return self.var_declaration();
         }
@@ -86,7 +93,7 @@ impl<'a> Parser<'a> {
     }
 
     fn var_declaration(&mut self) -> ParseStmtResultFn {
-        println!("var_declaration");
+        log!(self.logger, LogSection::ParserFuncInfo, "var_declaration");
         self.consume(TT::Identifier, String::from("expect variable name"))?;
         let name = self.previous().clone();
 
@@ -103,7 +110,7 @@ impl<'a> Parser<'a> {
     }
 
     fn statement(&mut self) -> ParseStmtResultFn {
-        println!("statement");
+        log!(self.logger, LogSection::ParserFuncInfo, "statement");
         match self.peek().token_type {
             TT::Print => {
                 self.advance();
@@ -134,14 +141,14 @@ impl<'a> Parser<'a> {
     }
 
     fn print_statement(&mut self) -> ParseStmtResultFn {
-        println!("print_statement");
+        log!(self.logger, LogSection::ParserFuncInfo, "print_statement");
         let value = self.expression()?;
         self.consume(TT::SemiColon, String::from("expect ';' after value"))?;
         Ok(Statement::Print(value))
     }
 
     fn block_statement(&mut self) -> ParseStmtResultFn {
-        println!("block_statement");
+        log!(self.logger, LogSection::ParserFuncInfo, "block_statement");
         let mut statements = vec![];
 
         while self.peek().token_type != TT::RBrace && !self.is_at_end() {
@@ -154,7 +161,7 @@ impl<'a> Parser<'a> {
     }
 
     fn if_statement(&mut self) -> ParseStmtResultFn {
-        println!("if_statement");
+        log!(self.logger, LogSection::ParserFuncInfo, "if_statement");
         let cond = self.expression()?;
 
         self.consume(
@@ -183,7 +190,7 @@ impl<'a> Parser<'a> {
     }
 
     fn for_statement(&mut self) -> ParseStmtResultFn {
-        println!("for_statement");
+        log!(self.logger, LogSection::ParserFuncInfo, "for_statement");
         let mut initializer: Option<Statement> = None;
         let mut cond: Expression = Expression::Literal(LiteralValue::True);
         let mut increment: Option<Expression> = None;
@@ -258,31 +265,39 @@ impl<'a> Parser<'a> {
     }
 
     fn break_statement(&mut self) -> ParseStmtResultFn {
-        println!("break_statement");
+        log!(self.logger, LogSection::ParserFuncInfo, "break_statement");
         self.consume(TT::SemiColon, String::from("expect ';' after statement"))?;
         Ok(Statement::Break)
     }
 
     fn continue_statement(&mut self) -> ParseStmtResultFn {
-        println!("continue_statement");
+        log!(
+            self.logger,
+            LogSection::ParserFuncInfo,
+            "continue_statement"
+        );
         self.consume(TT::SemiColon, String::from("expect ';' after statement"))?;
         Ok(Statement::Continue)
     }
 
     fn expression_statement(&mut self) -> ParseStmtResultFn {
-        println!("expression_statement");
+        log!(
+            self.logger,
+            LogSection::ParserFuncInfo,
+            "expression_statement"
+        );
         let value = self.expression()?;
         self.consume(TT::SemiColon, String::from("expect ';' after value"))?;
         Ok(Statement::Expression(value))
     }
 
     fn expression(&mut self) -> ParseExprResultFn {
-        println!("expression");
+        log!(self.logger, LogSection::ParserFuncInfo, "expression");
         self.comma()
     }
 
     fn comma(&mut self) -> ParseExprResultFn {
-        println!("comma");
+        log!(self.logger, LogSection::ParserFuncInfo, "comma");
         let mut expression = self.assignment()?;
         while self.match_token(&[TT::Comma]) {
             let right = self.assignment()?;
@@ -296,7 +311,7 @@ impl<'a> Parser<'a> {
     }
 
     fn assignment(&mut self) -> ParseExprResultFn {
-        println!("assignment");
+        log!(self.logger, LogSection::ParserFuncInfo, "assignment");
         let mut expression = self.ternary()?;
         if self.match_token(&[TT::Equal]) {
             let value = self.assignment()?;
@@ -317,7 +332,7 @@ impl<'a> Parser<'a> {
     }
 
     fn ternary(&mut self) -> ParseExprResultFn {
-        println!("ternary");
+        log!(self.logger, LogSection::ParserFuncInfo, "ternary");
         let mut expression = self.logical_or()?;
         if self.match_token(&[TT::Question]) {
             let t = self.expression()?;
@@ -335,7 +350,7 @@ impl<'a> Parser<'a> {
     }
 
     fn logical_or(&mut self) -> ParseExprResultFn {
-        println!("logical_or");
+        log!(self.logger, LogSection::ParserFuncInfo, "logical_or");
         let mut expression = self.logical_and()?;
         while self.match_token(&[TT::PipePipe]) {
             let op = self.previous().clone();
@@ -351,7 +366,7 @@ impl<'a> Parser<'a> {
     }
 
     fn logical_and(&mut self) -> ParseExprResultFn {
-        println!("logical_and");
+        log!(self.logger, LogSection::ParserFuncInfo, "logical_and");
         let mut expression = self.equality()?;
         while self.match_token(&[TT::AmpAmp]) {
             let op = self.previous().clone();
@@ -368,7 +383,7 @@ impl<'a> Parser<'a> {
     }
 
     fn equality(&mut self) -> ParseExprResultFn {
-        println!("equality");
+        log!(self.logger, LogSection::ParserFuncInfo, "equality");
         let mut expression = self.comparison()?;
         while self.match_token(&[TT::EqualEqual, TT::BangEqual]) {
             let operator = self.previous().clone();
@@ -384,7 +399,7 @@ impl<'a> Parser<'a> {
     }
 
     fn comparison(&mut self) -> ParseExprResultFn {
-        println!("comparison");
+        log!(self.logger, LogSection::ParserFuncInfo, "comparison");
         let mut expression = self.term()?;
         while self.match_token(&[TT::Greater, TT::GreaterEqual, TT::Less, TT::LessEqual]) {
             let operator = self.previous().clone();
@@ -399,7 +414,7 @@ impl<'a> Parser<'a> {
     }
 
     fn term(&mut self) -> ParseExprResultFn {
-        println!("term");
+        log!(self.logger, LogSection::ParserFuncInfo, "term");
         let mut expression = self.factor()?;
         while self.match_token(&[TT::Plus, TT::Minus]) {
             let operator = self.previous().clone();
@@ -414,7 +429,7 @@ impl<'a> Parser<'a> {
     }
 
     fn factor(&mut self) -> ParseExprResultFn {
-        println!("factor");
+        log!(self.logger, LogSection::ParserFuncInfo, "factor");
         let mut expression = self.unary()?;
         while self.match_token(&[TT::Star, TT::Slash]) {
             let operator = self.previous().clone();
@@ -429,7 +444,7 @@ impl<'a> Parser<'a> {
     }
 
     fn unary(&mut self) -> ParseExprResultFn {
-        println!("unary");
+        log!(self.logger, LogSection::ParserFuncInfo, "unary");
         if self.match_token(&[TT::Minus, TT::Bang]) {
             let operator = self.previous().clone();
             let right = self.unary()?;
@@ -459,7 +474,7 @@ impl<'a> Parser<'a> {
     }
 
     fn finish_call(&mut self, callee: Expression) -> ParseExprResultFn {
-        println!("finish call");
+        log!(self.logger, LogSection::ParserFuncInfo, "finish_call");
         let mut arguments: Vec<Expression> = vec![];
 
         if !self.check(TT::RParen) {
@@ -487,8 +502,7 @@ impl<'a> Parser<'a> {
     }
 
     fn call(&mut self) -> ParseExprResultFn {
-        println!("call");
-
+        log!(self.logger, LogSection::ParserFuncInfo, "call");
         let mut expression = self.primary()?;
 
         loop {
@@ -502,7 +516,7 @@ impl<'a> Parser<'a> {
     }
 
     fn primary(&mut self) -> ParseExprResultFn {
-        println!("primary");
+        log!(self.logger, LogSection::ParserFuncInfo, "primary");
         let token = self.advance();
 
         match token.token_type {
