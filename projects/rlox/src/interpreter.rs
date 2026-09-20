@@ -1,10 +1,12 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
+    callable::Callable,
     environment::Environment,
     error::LoxError,
     expression::{Expression, LiteralValue},
-    statement::Statement,
+    function::Function,
+    statement::{FunctionStatement, Statement},
     token::TokenType as TT,
 };
 
@@ -15,13 +17,50 @@ pub struct ExecutionContext {
 pub type ExecutionResult = Result<Option<Value>, LoxError>;
 
 // TODO: check to see if Value and LiteralValue could be merged into one entity
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Clone)]
 pub enum Value {
     Number(f64),
     String(String),
     Boolean(bool),
     Null,
+    Callable(Rc<dyn Callable>),
 }
+
+impl Value {
+    pub fn as_callable(&self) -> Option<&dyn Callable> {
+        match self {
+            Value::Callable(callable) => Some(callable.as_ref()),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Debug for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Number(n) => {
+                write!(f, "{}", n)
+            }
+
+            Value::String(s) => {
+                write!(f, "\"{}\"", s)
+            }
+
+            Value::Boolean(b) => {
+                write!(f, "{}", b)
+            }
+
+            Value::Null => {
+                write!(f, "null")
+            }
+
+            Value::Callable(_) => {
+                write!(f, "<callable>")
+            }
+        }
+    }
+}
+
 pub type EvaluationResult = Result<Value, LoxError>;
 
 enum LoopFlow {
@@ -53,7 +92,7 @@ impl Interpreter {
         let statements = self.statements.clone();
 
         for statement in &statements {
-            value = self.execute_statement(statement)?;
+            value = self.execute_statement(statement, None)?;
         }
 
         Ok(ExecutionContext {
@@ -62,16 +101,28 @@ impl Interpreter {
         })
     }
 
-    pub fn execute_statement(&mut self, statement: &Statement) -> ExecutionResult {
+    pub fn execute_statement(
+        &mut self,
+        statement: &Statement,
+        environment: Option<Environment>,
+    ) -> ExecutionResult {
         match statement {
             Statement::If { cond, body, elze } => {
                 let cond = self.evaluate_expression(cond)?;
                 let cond = self.is_truthy(cond);
                 if cond {
-                    self.execute_statement(body)?;
+                    self.execute_statement(body, None)?;
                 } else if let Some(e) = elze.as_ref() {
-                    self.execute_statement(e.as_ref())?;
+                    self.execute_statement(e.as_ref(), None)?;
                 }
+                Ok(None)
+            }
+            Statement::Function(function) => {
+                let func = Function::new(function.clone());
+                self.environment.borrow_mut().define(
+                    function.name.lexeme.to_string(),
+                    Value::Callable(Rc::new(func)),
+                );
                 Ok(None)
             }
             Statement::For {
@@ -84,7 +135,7 @@ impl Interpreter {
                     let cond = self.evaluate_expression(cond)?;
                     let cond = self.is_truthy(cond);
                     if cond {
-                        self.execute_statement(body)?;
+                        self.execute_statement(body, None)?;
 
                         match self.loop_flow {
                             LoopFlow::Break => {
@@ -153,13 +204,16 @@ impl Interpreter {
                 Ok(None)
             }
             Statement::Block(statements) => {
-                let local_env = Environment::new_enclosed(self.environment.clone());
+                let local_env = environment.map_or_else(
+                    || Environment::new_enclosed(self.environment.clone()),
+                    |env| env.enclosed_by(self.environment.clone()),
+                );
                 let local_env_rc = Rc::new(RefCell::new(local_env));
 
                 let prev_env = std::mem::replace(&mut self.environment, local_env_rc);
 
                 for statement in statements {
-                    self.execute_statement(statement)?;
+                    self.execute_statement(statement, None)?;
                     match self.loop_flow {
                         LoopFlow::Break | LoopFlow::Continue => break,
                         _ => {}
@@ -339,12 +393,32 @@ impl Interpreter {
                 arguments,
             } => {
                 let callee = self.evaluate_expression(callee)?;
-                let mut arguments: Vec<Value> = arguments
+                let arguments: Vec<Value> = arguments
                     .into_iter()
                     .map(|arg| self.evaluate_expression(arg))
                     .collect::<Result<_, _>>()?;
-                // TODO: Continue implementing
-                Ok(Value::Null)
+                let function = match callee.as_callable() {
+                    Some(callable) => callable,
+                    None => {
+                        return Err(LoxError::Runtime {
+                            message: format!(
+                                "can only call functions and classes, instead called {:?}",
+                                callee
+                            ),
+                        });
+                    }
+                };
+                if arguments.len() != function.arity() {
+                    Err(LoxError::Runtime {
+                        message: format!(
+                            "expected {} arguments but got {}",
+                            function.arity(),
+                            arguments.len()
+                        ),
+                    })
+                } else {
+                    function.call(self, arguments)
+                }
             }
             Expression::Grouping(expr) => self.evaluate_expression(expr),
             Expression::Literal(value) => match value {
@@ -370,7 +444,10 @@ impl Interpreter {
         match (&a, &b) {
             (Value::Null, Value::Null) => true,
             (Value::Null, _) => false,
-            _ => a == b,
+            (Value::Boolean(a), Value::Boolean(b)) => a == b,
+            (Value::Number(a), Value::Number(b)) => a == b,
+            (Value::String(a), Value::String(b)) => a == b,
+            (_, _) => false,
         }
     }
 

@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::{error::LoxError, interpreter::Value};
+use crate::{error::LoxError, interpreter::Value, native::clock::Clock};
 
 #[derive(Debug, Clone)]
 pub struct Environment {
@@ -20,7 +20,30 @@ impl Environment {
         }
     }
 
+    pub fn globals() -> Self {
+        let mut values = HashMap::new();
+
+        values.insert("clock".to_string(), Value::Callable(Rc::new(Clock)));
+
+        Environment {
+            enclosing: None,
+            values,
+        }
+    }
+
     pub fn new_enclosed(enclosing: Rc<RefCell<Environment>>) -> Self {
+        Environment {
+            enclosing: Some(enclosing),
+            values: HashMap::new(),
+        }
+    }
+
+    pub fn enclosed_by(mut self, enclosing: Rc<RefCell<Environment>>) -> Self {
+        self.enclosing = Some(enclosing);
+        self
+    }
+
+    pub fn enclose(enclosing: Rc<RefCell<Environment>>) -> Self {
         Environment {
             enclosing: Some(enclosing),
             values: HashMap::new(),

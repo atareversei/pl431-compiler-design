@@ -2,7 +2,7 @@ use crate::{
     error::LoxError,
     expression::{Expression, LiteralValue},
     logger::{LogSection, Logger},
-    statement::Statement,
+    statement::{FunctionStatement, Statement},
     token::{
         Token,
         TokenType::{self as TT},
@@ -86,10 +86,17 @@ impl<'a> Parser<'a> {
 
     fn declaration(&mut self) -> ParseStmtResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "declaration");
-        if self.match_token(&[TT::Var]) {
-            return self.var_declaration();
+        match self.peek().token_type {
+            TT::Var => {
+                self.advance();
+                self.var_declaration()
+            }
+            TT::Func => {
+                self.advance();
+                self.function("function".to_string())
+            }
+            _ => self.statement(),
         }
-        self.statement()
     }
 
     fn var_declaration(&mut self) -> ParseStmtResultFn {
@@ -107,6 +114,41 @@ impl<'a> Parser<'a> {
             String::from("expect ';' after variable declaration"),
         )?;
         Ok(Statement::Var { name, initializer })
+    }
+
+    fn function(&mut self, kind: String) -> ParseStmtResultFn {
+        log!(self.logger, LogSection::ParserFuncInfo, "function");
+        let func_name = self
+            .consume(TT::Identifier, format!("expect {} name", kind))?
+            .clone();
+        self.consume(TT::LParen, format!("expect '(' after {} name", kind))?;
+
+        let mut first_iter = true;
+        let mut parameters = vec![];
+        if !self.check(TT::RParen) {
+            while first_iter || self.match_token(&[TT::Comma]) {
+                if parameters.len() >= 255 {
+                    return Err(LoxError::Parse {
+                        message: String::from("cannot have more than 255 parameters"),
+                    });
+                }
+                let parameter =
+                    self.consume(TT::Identifier, String::from("expect parameter name"))?;
+                parameters.push(parameter.clone());
+                first_iter = false;
+            }
+        }
+
+        self.consume(TT::RParen, String::from("expect ')' after parameters"))?;
+        self.consume(TT::LBrace, format!("expect '{{' before {} body", kind))?;
+
+        let body = self.block_statement()?;
+
+        Ok(Statement::Function(FunctionStatement {
+            name: func_name.clone(),
+            parameters,
+            body: Some(Box::new(body)),
+        }))
     }
 
     fn statement(&mut self) -> ParseStmtResultFn {
@@ -735,6 +777,14 @@ mod tests {
                     .as_ref()
                     .map(|e| Box::new(normalize_statement(e.as_ref()))),
             },
+            Statement::Function(function_declaration) => Statement::Function(FunctionStatement {
+                name: function_declaration.name.clone(),
+                parameters: function_declaration.parameters.clone(),
+                body: function_declaration
+                    .body
+                    .as_ref()
+                    .map(|e| Box::new(normalize_statement(e.as_ref()))),
+            }),
             Statement::Var { name, initializer } => match initializer {
                 Some(expr) => Statement::Var {
                     name: name.clone(),

@@ -1,7 +1,6 @@
 use crate::environment::Environment;
 use crate::interpreter::Interpreter;
 use crate::lexer::Lexer;
-use crate::log;
 use crate::logger::{LogSection, Logger};
 use crate::lox::RunMode::File;
 use crate::{error::LoxError, parser::Parser};
@@ -26,7 +25,7 @@ pub fn run() -> Result<(), Vec<LoxError>> {
 }
 
 fn run_repl(logger: Logger) -> Result<(), Vec<LoxError>> {
-    let mut environment = Environment::new();
+    let mut environment = Environment::globals();
     let stdin = io::stdin();
     let mut line = String::new();
 
@@ -87,7 +86,7 @@ fn run_file(paths: Vec<String>, logger: Logger) -> Result<(), Vec<LoxError>> {
         return Err(parse_result.errors);
     }
 
-    let environment = Environment::new();
+    let mut environment = Environment::globals();
     let mut interpreter = Interpreter::new(parse_result.statements, environment);
     match interpreter.interpret() {
         Ok(ctx) => {
