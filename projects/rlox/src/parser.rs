@@ -12,6 +12,7 @@ use crate::{
 use crate::log;
 
 // TODO: remove `clone()`
+// TODO: extra semicolons cause issues - fix needed.
 
 // Redesign output strategy
 pub struct ParseResult {
@@ -41,10 +42,6 @@ impl<'a> Parser<'a> {
             tokens,
             logger,
         }
-    }
-
-    fn log(&self, format: &str) {
-        // self.logger.log();
     }
 
     fn synchronize(&mut self) {
@@ -177,6 +174,10 @@ impl<'a> Parser<'a> {
             TT::Continue => {
                 self.advance();
                 self.continue_statement()
+            }
+            TT::Return => {
+                self.advance();
+                self.return_statement()
             }
             _ => self.expression_statement(),
         }
@@ -320,6 +321,16 @@ impl<'a> Parser<'a> {
         );
         self.consume(TT::SemiColon, String::from("expect ';' after statement"))?;
         Ok(Statement::Continue)
+    }
+
+    fn return_statement(&mut self) -> ParseStmtResultFn {
+        log!(self.logger, LogSection::ParserFuncInfo, "return_statement");
+        let mut expression: Option<Expression> = None;
+        if !self.check(TT::SemiColon) {
+            expression = Some(self.expression()?);
+        }
+        self.consume(TT::SemiColon, String::from("expected ';' after value"))?;
+        Ok(Statement::Return(expression))
     }
 
     fn expression_statement(&mut self) -> ParseStmtResultFn {
@@ -804,6 +815,11 @@ mod tests {
                 cond: normalize_expression(cond),
                 body: Box::new(normalize_statement(body)),
             },
+            Statement::Return(expression) => Statement::Return(
+                expression
+                    .clone()
+                    .map_or(None, |expr| Some(normalize_expression(&expr))),
+            ),
             Statement::Block(statements) => {
                 let mut normalized_statements = vec![];
                 for statement in statements {
@@ -832,15 +848,8 @@ mod tests {
     fn get_parse_result(src: &str) -> ParseResult {
         let mut lexer = Lexer::new(src);
         let lex_result = lexer.lex_tokens();
-        let mut parser = Parser::new(
-            &lex_result.tokens,
-            &Logger {
-                lexer_tokens: false,
-                parser_consumed_tokens: false,
-                parser_statements: false,
-                parser_func_info: false,
-            },
-        );
+        let logger = Logger::new_all_off();
+        let mut parser = Parser::new(&lex_result.tokens, &logger);
         let parse_result = parser.parse();
         ParseResult {
             statements: normalize_statements(parse_result.statements),

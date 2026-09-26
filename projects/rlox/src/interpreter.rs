@@ -6,7 +6,9 @@ use crate::{
     error::LoxError,
     expression::{Expression, LiteralValue},
     function::Function,
-    statement::{FunctionStatement, Statement},
+    log,
+    logger::Logger,
+    statement::Statement,
     token::TokenType as TT,
 };
 
@@ -69,20 +71,31 @@ enum LoopFlow {
     Continue,
 }
 
-pub struct Interpreter {
-    environment: Rc<RefCell<Environment>>,
-    statements: Vec<Statement>,
-    loop_depth: usize,
-    loop_flow: LoopFlow,
+enum FunctionFlow {
+    Normal,
+    Return,
 }
 
-impl Interpreter {
-    pub fn new(statements: Vec<Statement>, environment: Environment) -> Self {
+pub struct Interpreter<'a> {
+    environment: Rc<RefCell<Environment>>,
+    statements: Vec<Statement>,
+    logger: &'a Logger,
+    loop_depth: usize,
+    loop_flow: LoopFlow,
+    function_depth: usize,
+    function_flow: FunctionFlow,
+}
+
+impl<'a> Interpreter<'a> {
+    pub fn new(statements: Vec<Statement>, environment: Environment, logger: &'a Logger) -> Self {
         Interpreter {
             statements,
             environment: Rc::new(RefCell::new(environment)),
+            logger,
             loop_depth: 0,
             loop_flow: LoopFlow::Normal,
+            function_depth: 0,
+            function_flow: FunctionFlow::Normal,
         }
     }
 
@@ -108,6 +121,11 @@ impl Interpreter {
     ) -> ExecutionResult {
         match statement {
             Statement::If { cond, body, elze } => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoStatements,
+                    "if"
+                );
                 let cond = self.evaluate_expression(cond)?;
                 let cond = self.is_truthy(cond);
                 if cond {
@@ -118,7 +136,13 @@ impl Interpreter {
                 Ok(None)
             }
             Statement::Function(function) => {
-                let func = Function::new(function.clone());
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoStatements,
+                    "function <{:?}>",
+                    function.name.lexeme,
+                );
+                let func = Function::new(function.clone(), self.environment.clone());
                 self.environment.borrow_mut().define(
                     function.name.lexeme.to_string(),
                     Value::Callable(Rc::new(func)),
@@ -130,12 +154,23 @@ impl Interpreter {
                 cond,
                 body,
             } => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoStatements,
+                    "for"
+                );
                 self.loop_depth += 1;
                 loop {
-                    let cond = self.evaluate_expression(cond)?;
+                    let cond = self.evaluate_expression(cond).map_err(|err| {
+                        self.loop_depth -= 1;
+                        err
+                    })?;
                     let cond = self.is_truthy(cond);
                     if cond {
-                        self.execute_statement(body, None)?;
+                        self.execute_statement(body, None).map_err(|err| {
+                            self.loop_depth -= 1;
+                            err
+                        })?;
 
                         match self.loop_flow {
                             LoopFlow::Break => {
@@ -149,7 +184,10 @@ impl Interpreter {
                         };
 
                         if let Some(inc) = increment {
-                            self.evaluate_expression(inc)?;
+                            self.evaluate_expression(inc).map_err(|err| {
+                                self.loop_depth -= 1;
+                                err
+                            })?;
                         }
                     } else {
                         break;
@@ -159,6 +197,11 @@ impl Interpreter {
                 Ok(None)
             }
             Statement::Break => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoStatements,
+                    "break"
+                );
                 if self.loop_depth == 0 {
                     return Err(LoxError::Runtime {
                         message: String::from("cannot use 'break' outside of loop body"),
@@ -169,6 +212,11 @@ impl Interpreter {
                 Ok(None)
             }
             Statement::Continue => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoStatements,
+                    "continue"
+                );
                 if self.loop_depth == 0 {
                     return Err(LoxError::Runtime {
                         message: String::from("cannot use 'continue' outside of loop body"),
@@ -178,6 +226,12 @@ impl Interpreter {
                 Ok(None)
             }
             Statement::Var { name, initializer } => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoStatements,
+                    "var <{:?}>",
+                    name.lexeme
+                );
                 let mut value = Value::Null;
                 // handle uninitialized variable evaluation
                 if initializer.is_none() {
@@ -203,7 +257,31 @@ impl Interpreter {
                     .define(name.lexeme.clone(), value);
                 Ok(None)
             }
+            Statement::Return(expression) => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoStatements,
+                    "return"
+                );
+                if self.function_depth == 0 {
+                    return Err(LoxError::Runtime {
+                        message: String::from("cannot use 'return' outside of function body"),
+                    });
+                }
+                let mut result = Value::Null;
+                if let Some(expr) = expression {
+                    result = self.evaluate_expression(expr)?;
+                };
+
+                self.function_flow = FunctionFlow::Return;
+                Ok(Some(result))
+            }
             Statement::Block(statements) => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoStatements,
+                    "block"
+                );
                 let local_env = environment.map_or_else(
                     || Environment::new_enclosed(self.environment.clone()),
                     |env| env.enclosed_by(self.environment.clone()),
@@ -213,21 +291,36 @@ impl Interpreter {
                 let prev_env = std::mem::replace(&mut self.environment, local_env_rc);
 
                 for statement in statements {
-                    self.execute_statement(statement, None)?;
-                    match self.loop_flow {
-                        LoopFlow::Break | LoopFlow::Continue => break,
-                        _ => {}
-                    }
+                    let value = self.execute_statement(statement, None)?;
+
+                    if matches!(self.loop_flow, LoopFlow::Break | LoopFlow::Continue) {
+                        break;
+                    };
+
+                    if matches!(self.function_flow, FunctionFlow::Return) {
+                        self.function_flow = FunctionFlow::Normal;
+                        return Ok(value);
+                    };
                 }
 
                 self.environment = prev_env;
                 Ok(None)
             }
             Statement::Expression(expression) => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoStatements,
+                    "expression"
+                );
                 let value = self.evaluate_expression(expression)?;
                 Ok(Some(value))
             }
             Statement::Print(expression) => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoStatements,
+                    "print"
+                );
                 let value = self.evaluate_expression(expression)?;
                 println!("{:?}", value);
                 Ok(None)
@@ -242,6 +335,11 @@ impl Interpreter {
                 true_branch,
                 false_branch,
             } => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoExpressions,
+                    "expr_ternary"
+                );
                 let condition = self.evaluate_expression(condition)?;
                 if self.is_truthy(condition) {
                     self.evaluate_expression(true_branch)
@@ -254,6 +352,11 @@ impl Interpreter {
                 operator,
                 right,
             } => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoExpressions,
+                    "expr_binary"
+                );
                 let left_value = self.evaluate_expression(left)?;
                 let right_value = self.evaluate_expression(right)?;
 
@@ -345,6 +448,11 @@ impl Interpreter {
                 }
             }
             Expression::Assignment { name, value } => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoExpressions,
+                    "expr_assignment"
+                );
                 let value = self.evaluate_expression(value)?;
                 self.environment
                     .borrow_mut()
@@ -356,6 +464,11 @@ impl Interpreter {
                 operator,
                 right,
             } => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoExpressions,
+                    "expr_logical"
+                );
                 let left = self.evaluate_expression(left)?;
                 if operator.token_type == TT::PipePipe && self.is_truthy(left.clone()) {
                     return Ok(left);
@@ -367,6 +480,11 @@ impl Interpreter {
                 Ok(right)
             }
             Expression::Unary { operator, right } => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoExpressions,
+                    "expr_unary"
+                );
                 let right_value = self.evaluate_expression(right)?;
 
                 match operator.token_type {
@@ -384,6 +502,11 @@ impl Interpreter {
                 }
             }
             Expression::Comma { left, right } => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoExpressions,
+                    "expr_comma"
+                );
                 self.evaluate_expression(left)?;
                 self.evaluate_expression(right)
             }
@@ -392,6 +515,11 @@ impl Interpreter {
                 paren,
                 arguments,
             } => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoExpressions,
+                    "expr_call"
+                );
                 let callee = self.evaluate_expression(callee)?;
                 let arguments: Vec<Value> = arguments
                     .into_iter()
@@ -417,18 +545,42 @@ impl Interpreter {
                         ),
                     })
                 } else {
-                    function.call(self, arguments)
+                    self.function_depth += 1;
+                    let result = function.call(self, arguments);
+                    self.function_depth -= 1;
+                    result
                 }
             }
-            Expression::Grouping(expr) => self.evaluate_expression(expr),
-            Expression::Literal(value) => match value {
-                LiteralValue::False => Ok(Value::Boolean(false)),
-                LiteralValue::True => Ok(Value::Boolean(true)),
-                LiteralValue::Number(n) => Ok(Value::Number(*n)),
-                LiteralValue::String(s) => Ok(Value::String(s.clone())),
-                LiteralValue::Null => Ok(Value::Null),
-            },
-            Expression::Variable(name) => self.environment.borrow_mut().get(&name.lexeme),
+            Expression::Grouping(expr) => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoExpressions,
+                    "expr_grouping"
+                );
+                self.evaluate_expression(expr)
+            }
+            Expression::Literal(value) => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoExpressions,
+                    "expr_literal"
+                );
+                match value {
+                    LiteralValue::False => Ok(Value::Boolean(false)),
+                    LiteralValue::True => Ok(Value::Boolean(true)),
+                    LiteralValue::Number(n) => Ok(Value::Number(*n)),
+                    LiteralValue::String(s) => Ok(Value::String(s.clone())),
+                    LiteralValue::Null => Ok(Value::Null),
+                }
+            }
+            Expression::Variable(name) => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoExpressions,
+                    "expr_variable"
+                );
+                self.environment.borrow_mut().get(&name.lexeme)
+            }
         }
     }
 
@@ -501,18 +653,12 @@ mod tests {
         let src = String::from_utf8_lossy(&bytes);
         let mut lexer = Lexer::new(&src);
         let lex_result = lexer.lex_tokens();
-        let mut parser = Parser::new(
-            &lex_result.tokens,
-            &Logger {
-                lexer_tokens: false,
-                parser_consumed_tokens: false,
-                parser_statements: false,
-                parser_func_info: false,
-            },
-        );
+        let logger = Logger::new_all_off();
+        let mut parser = Parser::new(&lex_result.tokens, &logger);
         let parse_result = parser.parse();
         let environment = Environment::new();
-        let mut interpreter = Interpreter::new(parse_result.statements, environment);
+        let logger = Logger::new_all_off();
+        let mut interpreter = Interpreter::new(parse_result.statements, environment, &logger);
         interpreter.interpret()?;
         Ok(())
     }

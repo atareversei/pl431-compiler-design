@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::{
     callable::Callable,
     environment::{self, Environment},
@@ -8,11 +10,15 @@ use crate::{
 
 pub struct Function {
     declaration: FunctionStatement,
+    closure: Rc<RefCell<Environment>>,
 }
 
 impl Function {
-    pub fn new(declaration: FunctionStatement) -> Self {
-        Self { declaration }
+    pub fn new(declaration: FunctionStatement, closure: Rc<RefCell<Environment>>) -> Self {
+        Self {
+            declaration,
+            closure,
+        }
     }
 }
 
@@ -26,7 +32,7 @@ impl Callable for Function {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, LoxError> {
-        let mut environment = Environment::globals();
+        let mut environment = Environment::new_enclosed(self.closure.clone());
         for (param, argument) in self.declaration.parameters.iter().zip(arguments) {
             environment.define(param.lexeme.clone(), argument);
         }

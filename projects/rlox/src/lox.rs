@@ -1,6 +1,7 @@
 use crate::environment::Environment;
 use crate::interpreter::Interpreter;
 use crate::lexer::Lexer;
+use crate::log;
 use crate::logger::{LogSection, Logger};
 use crate::lox::RunMode::File;
 use crate::{error::LoxError, parser::Parser};
@@ -48,7 +49,7 @@ fn run_repl(logger: Logger) -> Result<(), Vec<LoxError>> {
             return Err(parse_result.errors);
         }
 
-        let mut interpreter = Interpreter::new(parse_result.statements, environment);
+        let mut interpreter = Interpreter::new(parse_result.statements, environment, &logger);
         match interpreter.interpret() {
             Ok(ctx) => {
                 environment = ctx.environment.borrow().clone();
@@ -81,13 +82,18 @@ fn run_file(paths: Vec<String>, logger: Logger) -> Result<(), Vec<LoxError>> {
     let mut parser = Parser::new(&lex_result.tokens, &logger);
     let parse_result = parser.parse();
     if parse_result.has_errors() {
-        println!("execution stopped");
-        println!("Program Statements: {:?}", parse_result.statements);
+        log!(logger, LogSection::GeneralInfo, "execution stopped");
+        log!(
+            logger,
+            LogSection::ParserStatements,
+            "Program Statements: {:?}",
+            parse_result.statements
+        );
         return Err(parse_result.errors);
     }
 
     let mut environment = Environment::globals();
-    let mut interpreter = Interpreter::new(parse_result.statements, environment);
+    let mut interpreter = Interpreter::new(parse_result.statements, environment, &logger);
     match interpreter.interpret() {
         Ok(ctx) => {
             println!("program executed successfully");
@@ -108,9 +114,12 @@ pub enum RunMode {
 pub struct Config {
     pub mode: RunMode,
 
+    pub log_general_info: bool,
     pub log_parser_statements: bool,
     pub log_parser_consumed_tokens: bool,
     pub log_parser_func_info: bool,
+    pub log_runtime_func_info_statements: bool,
+    pub log_runtime_func_info_expressions: bool,
 }
 
 pub fn parse_args() -> Result<Config, LoxError> {
@@ -118,9 +127,12 @@ pub fn parse_args() -> Result<Config, LoxError> {
 
     let mut config = Config {
         mode: RunMode::Repl,
+        log_general_info: true,
         log_parser_consumed_tokens: false,
         log_parser_statements: false,
         log_parser_func_info: false,
+        log_runtime_func_info_statements: false,
+        log_runtime_func_info_expressions: false,
     };
 
     for arg in args {
@@ -128,6 +140,10 @@ pub fn parse_args() -> Result<Config, LoxError> {
             "--log-parser-consumed-tokens" => config.log_parser_consumed_tokens = true,
             "--log-parser-statements" => config.log_parser_statements = true,
             "--log-parser-func-info" => config.log_parser_func_info = true,
+            "--log-runtime-func-info-statements" => config.log_runtime_func_info_statements = true,
+            "--log-runtime-func-info-expressions" => {
+                config.log_runtime_func_info_expressions = true
+            }
             value if value.starts_with('-') => {
                 return Err(LoxError::Config {
                     message: format!("undefined argument: {}", value),

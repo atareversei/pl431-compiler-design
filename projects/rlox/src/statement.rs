@@ -14,7 +14,6 @@ pub enum Statement {
         body: Box<Statement>,
         elze: Option<Box<Statement>>,
     },
-    Function(FunctionStatement),
     Var {
         name: Token,
         initializer: Option<Expression>,
@@ -24,6 +23,8 @@ pub enum Statement {
         cond: Expression,
         body: Box<Statement>,
     },
+    Function(FunctionStatement),
+    Return(Option<Expression>),
     Block(Vec<Statement>),
     Expression(Expression),
     Print(Expression), // TODO: move to standard library

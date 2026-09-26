@@ -1,0 +1,13 @@
+func counter() {
+  var i = 0;
+  func increment() {
+    i = i + 1;
+    print "i value: " + i;
+  }
+  return increment;
+}
+
+var increment = counter();
+increment();
+increment();
+print "finished";
