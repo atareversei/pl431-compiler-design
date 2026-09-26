@@ -1,0 +1,23 @@
+func a() {
+  for {
+    if (!false) {
+      return b();
+    }
+    return null;
+  }
+  return null;
+}
+
+func b() {
+  if (true) {
+    return c();
+  }
+  return null;
+}
+
+func c() {
+  return "a";
+  return null;
+}
+
+print a();

@@ -41,8 +41,12 @@ impl Callable for Function {
             return Ok(Value::Null);
         };
 
-        let result = interpreter.execute_statement(body.as_ref(), Some(environment))?;
+        interpreter.execute_statement(body.as_ref(), Some(environment))?;
+        let value = interpreter
+            .function_stack
+            .last()
+            .map_or(Value::Null, |f| f.returned.clone());
 
-        Ok(result.unwrap_or(Value::Null))
+        Ok(value)
     }
 }

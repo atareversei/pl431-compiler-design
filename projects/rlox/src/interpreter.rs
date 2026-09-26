@@ -71,9 +71,16 @@ enum LoopFlow {
     Continue,
 }
 
-enum FunctionFlow {
+enum FunctionState {
     Normal,
     Return,
+}
+
+pub struct FunctionMetadata {
+    state: FunctionState,
+    name: String,
+
+    pub returned: Value,
 }
 
 pub struct Interpreter<'a> {
@@ -82,8 +89,8 @@ pub struct Interpreter<'a> {
     logger: &'a Logger,
     loop_depth: usize,
     loop_flow: LoopFlow,
-    function_depth: usize,
-    function_flow: FunctionFlow,
+
+    pub function_stack: Vec<FunctionMetadata>,
 }
 
 impl<'a> Interpreter<'a> {
@@ -94,8 +101,7 @@ impl<'a> Interpreter<'a> {
             logger,
             loop_depth: 0,
             loop_flow: LoopFlow::Normal,
-            function_depth: 0,
-            function_flow: FunctionFlow::Normal,
+            function_stack: vec![],
         }
     }
 
@@ -263,7 +269,7 @@ impl<'a> Interpreter<'a> {
                     crate::logger::LogSection::RuntimeFuncInfoStatements,
                     "return"
                 );
-                if self.function_depth == 0 {
+                if self.function_stack.len() == 0 {
                     return Err(LoxError::Runtime {
                         message: String::from("cannot use 'return' outside of function body"),
                     });
@@ -272,9 +278,12 @@ impl<'a> Interpreter<'a> {
                 if let Some(expr) = expression {
                     result = self.evaluate_expression(expr)?;
                 };
-
-                self.function_flow = FunctionFlow::Return;
-                Ok(Some(result))
+                let last_function = self.function_stack.last_mut();
+                if let Some(function) = last_function {
+                    function.state = FunctionState::Return;
+                    function.returned = result;
+                };
+                Ok(None)
             }
             Statement::Block(statements) => {
                 log!(
@@ -284,22 +293,24 @@ impl<'a> Interpreter<'a> {
                 );
                 let local_env = environment.map_or_else(
                     || Environment::new_enclosed(self.environment.clone()),
-                    |env| env.enclosed_by(self.environment.clone()),
+                    |env| env,
                 );
                 let local_env_rc = Rc::new(RefCell::new(local_env));
 
                 let prev_env = std::mem::replace(&mut self.environment, local_env_rc);
 
                 for statement in statements {
-                    let value = self.execute_statement(statement, None)?;
+                    self.execute_statement(statement, None)?;
 
                     if matches!(self.loop_flow, LoopFlow::Break | LoopFlow::Continue) {
                         break;
                     };
 
-                    if matches!(self.function_flow, FunctionFlow::Return) {
-                        self.function_flow = FunctionFlow::Normal;
-                        return Ok(value);
+                    let last_function = self.function_stack.last();
+                    if let Some(function) = last_function {
+                        if matches!(function.state, FunctionState::Return) {
+                            break;
+                        };
                     };
                 }
 
@@ -545,9 +556,14 @@ impl<'a> Interpreter<'a> {
                         ),
                     })
                 } else {
-                    self.function_depth += 1;
+                    let function_new = FunctionMetadata {
+                        state: FunctionState::Normal,
+                        name: String::from(""),
+                        returned: Value::Null,
+                    };
+                    self.function_stack.push(function_new);
                     let result = function.call(self, arguments);
-                    self.function_depth -= 1;
+                    self.function_stack.pop();
                     result
                 }
             }
@@ -679,5 +695,23 @@ mod tests {
     fn loops() {
         let result = get_result("loop.rlox");
         assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn closures() {
+        let result = get_result("closure.rlox");
+        assert_eq!(result, Ok(()))
+    }
+
+    #[test]
+    fn recursives() {
+        let result = get_result("recursive.rlox");
+        assert_eq!(result, Ok(()))
+    }
+
+    #[test]
+    fn returns() {
+        let result = get_result("return.rlox");
+        assert_eq!(result, Ok(()))
     }
 }
