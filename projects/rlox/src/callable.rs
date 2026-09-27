@@ -5,6 +5,7 @@ use crate::{
 
 
 pub trait Callable {
+    fn name(&self) -> String;
     fn arity(&self) -> usize;
     fn call(&self, interpreter: &mut Interpreter, arguments: Vec<Value>)
     -> Result<Value, LoxError>;

@@ -71,11 +71,13 @@ enum LoopFlow {
     Continue,
 }
 
+#[derive(Debug)]
 enum FunctionState {
     Normal,
     Return,
 }
 
+#[derive(Debug)]
 pub struct FunctionMetadata {
     state: FunctionState,
     name: String,
@@ -160,6 +162,7 @@ impl<'a> Interpreter<'a> {
                 cond,
                 body,
             } => {
+                // TODO: Why not use a block for `for` loops?
                 log!(
                     self.logger,
                     crate::logger::LogSection::RuntimeFuncInfoStatements,
@@ -187,6 +190,13 @@ impl<'a> Interpreter<'a> {
                                 self.loop_flow = LoopFlow::Normal;
                             }
                             _ => {}
+                        };
+
+                        let last_function = self.function_stack.last();
+                        if let Some(function) = last_function {
+                            if matches!(function.state, FunctionState::Return) {
+                                break;
+                            };
                         };
 
                         if let Some(inc) = increment {
@@ -301,11 +311,9 @@ impl<'a> Interpreter<'a> {
 
                 for statement in statements {
                     self.execute_statement(statement, None)?;
-
                     if matches!(self.loop_flow, LoopFlow::Break | LoopFlow::Continue) {
                         break;
                     };
-
                     let last_function = self.function_stack.last();
                     if let Some(function) = last_function {
                         if matches!(function.state, FunctionState::Return) {
@@ -558,12 +566,13 @@ impl<'a> Interpreter<'a> {
                 } else {
                     let function_new = FunctionMetadata {
                         state: FunctionState::Normal,
-                        name: String::from(""),
+                        name: function.name(),
                         returned: Value::Null,
                     };
                     self.function_stack.push(function_new);
                     let result = function.call(self, arguments);
-                    self.function_stack.pop();
+                    let a = self.function_stack.pop();
+
                     result
                 }
             }
@@ -579,7 +588,8 @@ impl<'a> Interpreter<'a> {
                 log!(
                     self.logger,
                     crate::logger::LogSection::RuntimeFuncInfoExpressions,
-                    "expr_literal"
+                    "expr_literal <{:?}>",
+                    value
                 );
                 match value {
                     LiteralValue::False => Ok(Value::Boolean(false)),

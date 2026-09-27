@@ -9,6 +9,10 @@ use crate::{
 pub struct Clock;
 
 impl Callable for Clock {
+    fn name(&self) -> String {
+        "<native> clock".to_string()
+    }
+
     fn arity(&self) -> usize {
         0
     }

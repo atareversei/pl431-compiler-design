@@ -23,6 +23,10 @@ impl Function {
 }
 
 impl Callable for Function {
+    fn name(&self) -> String {
+        self.declaration.name.to_string()
+    }
+
     fn arity(&self) -> usize {
         self.declaration.parameters.len()
     }

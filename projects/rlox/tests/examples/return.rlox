@@ -3,6 +3,7 @@ func a() {
     if (!false) {
       return b();
     }
+    break;
     return null;
   }
   return null;
