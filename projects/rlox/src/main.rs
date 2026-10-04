@@ -10,6 +10,7 @@ mod lox;
 mod native;
 mod parser;
 mod printer;
+mod resolver;
 mod statement;
 mod token;
 
