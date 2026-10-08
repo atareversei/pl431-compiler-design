@@ -4,11 +4,14 @@
 use std::collections::HashMap;
 
 use crate::{
+    error::LoxError,
     expression::Expression,
-    interpreter::{self, Interpreter},
-    statement::Statement,
+    interpreter::Interpreter,
+    statement::{FunctionStatement, Statement},
     token::Token,
 };
+
+type ResolveResultFn = Result<(), LoxError>;
 
 pub struct Resolver<'a> {
     interpreter: Interpreter<'a>,
@@ -23,32 +26,159 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    pub fn resolve(&mut self, statements: Vec<Statement>) {
+    pub fn resolve(&mut self, statements: &Vec<Statement>) -> ResolveResultFn {
         for statement in statements {
-            self.resolve_statement(statement);
+            self.resolve_statement(statement)?;
         }
+        Ok(())
     }
 
-    fn resolve_statement(&mut self, statement: Statement) {
+    fn resolve_statement(&mut self, statement: &Statement) -> ResolveResultFn {
         match statement {
             Statement::Block(statements) => {
                 self.begin_scope();
-                self.resolve(statements);
+                self.resolve(statements)?;
                 self.end_scope();
             }
             Statement::Var { name, initializer } => {
                 self.declare(&name);
-                if let Some(init) = initializer {
-                    self.resolve_expression(init);
+                if let Some(init) = &initializer {
+                    self.resolve_expression(init)?;
                 }
                 self.define(&name);
             }
-            _ => {}
+            Statement::Function(function) => {
+                self.declare(&function.name);
+                self.define(&function.name);
+
+                self.resolve_function(function);
+            }
+            Statement::Expression(expression) => {
+                self.resolve_expression(expression);
+            }
+            Statement::If { cond, body, elze } => {
+                self.resolve_expression(cond)?;
+                self.resolve_statement(body)?;
+                if let Some(el) = elze {
+                    self.resolve_statement(el)?;
+                }
+            }
+            Statement::Print(expression) => {
+                self.resolve_expression(expression)?;
+            }
+            Statement::Return(expression) => {
+                if let Some(expr) = expression {
+                    self.resolve_expression(expr)?;
+                }
+            }
+            Statement::For {
+                increment,
+                cond,
+                body,
+            } => {
+                if let Some(inc) = increment {
+                    self.resolve_expression(inc)?;
+                };
+                self.resolve_expression(cond)?;
+                self.resolve_statement(body)?;
+            }
+            Statement::Break | Statement::Continue => {}
         }
+        Ok(())
     }
 
-    fn resolve_expression(&self, expression: Expression) {
+    fn resolve_expression(&mut self, expression: &Expression) -> ResolveResultFn {
+        match expression {
+            Expression::Variable(variable) => {
+                if self
+                    .scopes
+                    .last()
+                    .and_then(|scope| scope.get(&variable.lexeme))
+                    == Some(&false)
+                {
+                    return Err(LoxError::Parse {
+                        message: String::from(""),
+                    });
+                }
+                self.resolve_local(expression, variable);
+            }
+            Expression::Assignment { name, value } => {
+                self.resolve_expression(value)?;
+                self.resolve_local(expression, name);
+            }
+            Expression::Binary {
+                operator: _,
+                left,
+                right,
+            } => {
+                self.resolve_expression(left)?;
+                self.resolve_expression(right)?;
+            }
+            Expression::Call {
+                paren: _,
+                callee,
+                arguments,
+            } => {
+                self.resolve_expression(callee)?;
+                for argument in arguments {
+                    self.resolve_expression(argument)?;
+                }
+            }
+            Expression::Grouping(expression) => {
+                self.resolve_expression(expression)?;
+            }
+            Expression::Logical {
+                operator: _,
+                left,
+                right,
+            } => {
+                self.resolve_expression(left)?;
+                self.resolve_expression(right)?;
+            }
+            Expression::Unary { operator: _, right } => {
+                self.resolve_expression(right)?;
+            }
+            Expression::Comma { left, right } => {
+                self.resolve_expression(left)?;
+                self.resolve_expression(right)?;
+            }
+            Expression::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => {
+                self.resolve_expression(condition)?;
+                self.resolve_expression(true_branch)?;
+                self.resolve_expression(false_branch)?;
+            }
+
+            Expression::Literal(_) => {}
+            _ => {}
+        }
+        Ok(())
         // TODO: implement
+    }
+
+    fn resolve_function(&mut self, function: &FunctionStatement) -> ResolveResultFn {
+        self.begin_scope();
+        for param in &function.parameters {
+            self.declare(&param);
+            self.define(&param);
+        }
+        if let Some(body) = &function.body {
+            self.resolve_statement(body.as_ref())?;
+        }
+        self.end_scope();
+        Ok(())
+    }
+
+    fn resolve_local(&mut self, expression: &Expression, name: &Token) {
+        for (i, scope) in self.scopes.iter().enumerate().rev() {
+            if scope.contains_key(&name.lexeme) {
+                self.interpreter
+                    .resolve(expression, self.scopes.len() - 1 - i);
+            }
+        }
     }
 
     fn begin_scope(&mut self) {

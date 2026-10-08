@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     callable::Callable,
@@ -88,6 +88,8 @@ pub struct FunctionMetadata {
 pub struct Interpreter<'a> {
     environment: Rc<RefCell<Environment>>,
     statements: Vec<Statement>,
+    // TODO: implement IDs to be able to identify expressions to avoid implementing hashing and equality traits
+    locals: HashMap<usize, usize>,
     logger: &'a Logger,
     loop_depth: usize,
     loop_flow: LoopFlow,
@@ -100,6 +102,7 @@ impl<'a> Interpreter<'a> {
         Interpreter {
             statements,
             environment: Rc::new(RefCell::new(environment)),
+            locals: HashMap::new(),
             logger,
             loop_depth: 0,
             loop_flow: LoopFlow::Normal,
@@ -107,7 +110,10 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    // TODO: read more about Rust best practice and rewrite this function
+    pub fn resolve(&mut self, expression: &Expression, depth: usize) {
+        self.locals.insert(0, depth);
+    }
+
     pub fn interpret(&mut self) -> Result<ExecutionContext, LoxError> {
         let mut value = None;
         let statements = self.statements.clone();
