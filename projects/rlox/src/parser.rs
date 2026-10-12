@@ -1,6 +1,6 @@
 use crate::{
     error::LoxError,
-    expression::{Expression, LiteralValue},
+    expression::{Expression, ExpressionKind, LiteralValue},
     logger::{LogSection, Logger},
     statement::{FunctionStatement, Statement},
     token::{
@@ -65,6 +65,7 @@ impl<'a> Parser<'a> {
 
         while !self.is_at_end() {
             log!(self.logger, LogSection::ParserFuncInfo, "-------------");
+
             match self.declaration() {
                 Ok(s) => statements.push(s),
                 Err(e) => errors.push(e),
@@ -235,7 +236,10 @@ impl<'a> Parser<'a> {
     fn for_statement(&mut self) -> ParseStmtResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "for_statement");
         let mut initializer: Option<Statement> = None;
-        let mut cond: Expression = Expression::Literal(LiteralValue::True);
+        let mut cond: Expression = Expression {
+            id: self.current,
+            kind: ExpressionKind::Literal(LiteralValue::True),
+        };
         let mut increment: Option<Expression> = None;
 
         // handles `for {}` infinite loop case
@@ -354,10 +358,13 @@ impl<'a> Parser<'a> {
         let mut expression = self.assignment()?;
         while self.match_token(&[TT::Comma]) {
             let right = self.assignment()?;
-            expression = Expression::Comma {
-                left: Box::new(expression),
-                right: Box::new(right),
-            };
+            expression = Expression {
+                id: self.current,
+                kind: ExpressionKind::Comma {
+                    left: Box::new(expression),
+                    right: Box::new(right),
+                },
+            }
         }
 
         Ok(expression)
@@ -369,10 +376,13 @@ impl<'a> Parser<'a> {
         if self.match_token(&[TT::Equal]) {
             let value = self.assignment()?;
 
-            if let Expression::Variable(name) = expression {
-                expression = Expression::Assignment {
-                    name,
-                    value: Box::new(value),
+            if let ExpressionKind::Variable(name) = expression.kind {
+                expression = Expression {
+                    id: self.current,
+                    kind: ExpressionKind::Assignment {
+                        name,
+                        value: Box::new(value),
+                    },
                 }
             } else {
                 return Err(LoxError::Parse {
@@ -392,11 +402,14 @@ impl<'a> Parser<'a> {
 
             self.consume(TT::Colon, String::from("expect ':' after ternary"))?;
             let f = self.ternary()?;
-            expression = Expression::Ternary {
-                condition: Box::new(expression),
-                true_branch: Box::new(t),
-                false_branch: Box::new(f),
-            };
+            expression = Expression {
+                id: self.current,
+                kind: ExpressionKind::Ternary {
+                    condition: Box::new(expression),
+                    true_branch: Box::new(t),
+                    false_branch: Box::new(f),
+                },
+            }
         }
 
         Ok(expression)
@@ -409,10 +422,13 @@ impl<'a> Parser<'a> {
             let op = self.previous().clone();
             let right = self.logical_and()?;
 
-            expression = Expression::Logical {
-                left: Box::new(expression),
-                operator: op,
-                right: Box::new(right),
+            expression = Expression {
+                id: self.current,
+                kind: ExpressionKind::Logical {
+                    left: Box::new(expression),
+                    operator: op,
+                    right: Box::new(right),
+                },
             }
         }
         Ok(expression)
@@ -425,11 +441,14 @@ impl<'a> Parser<'a> {
             let op = self.previous().clone();
             let right = self.equality()?;
 
-            expression = Expression::Logical {
-                left: Box::new(expression),
-                operator: op,
-                right: Box::new(right),
-            };
+            expression = Expression {
+                id: self.current,
+                kind: ExpressionKind::Logical {
+                    left: Box::new(expression),
+                    operator: op,
+                    right: Box::new(right),
+                },
+            }
         }
 
         Ok(expression)
@@ -441,11 +460,14 @@ impl<'a> Parser<'a> {
         while self.match_token(&[TT::EqualEqual, TT::BangEqual]) {
             let operator = self.previous().clone();
             let right = self.comparison()?;
-            expression = Expression::Binary {
-                left: Box::new(expression),
-                operator: operator.clone(),
-                right: Box::new(right),
-            };
+            expression = Expression {
+                id: self.current,
+                kind: ExpressionKind::Binary {
+                    left: Box::new(expression),
+                    operator: operator.clone(),
+                    right: Box::new(right),
+                },
+            }
         }
 
         Ok(expression)
@@ -457,11 +479,14 @@ impl<'a> Parser<'a> {
         while self.match_token(&[TT::Greater, TT::GreaterEqual, TT::Less, TT::LessEqual]) {
             let operator = self.previous().clone();
             let right = self.term()?;
-            expression = Expression::Binary {
-                left: Box::new(expression),
-                operator: operator.clone(),
-                right: Box::new(right),
-            };
+            expression = Expression {
+                id: self.current,
+                kind: ExpressionKind::Binary {
+                    left: Box::new(expression),
+                    operator: operator.clone(),
+                    right: Box::new(right),
+                },
+            }
         }
         Ok(expression)
     }
@@ -472,11 +497,14 @@ impl<'a> Parser<'a> {
         while self.match_token(&[TT::Plus, TT::Minus]) {
             let operator = self.previous().clone();
             let right = self.factor()?;
-            expression = Expression::Binary {
-                left: Box::new(expression),
-                operator: operator.clone(),
-                right: Box::new(right),
-            };
+            expression = Expression {
+                id: self.current,
+                kind: ExpressionKind::Binary {
+                    left: Box::new(expression),
+                    operator: operator.clone(),
+                    right: Box::new(right),
+                },
+            }
         }
         Ok(expression)
     }
@@ -487,11 +515,14 @@ impl<'a> Parser<'a> {
         while self.match_token(&[TT::Star, TT::Slash]) {
             let operator = self.previous().clone();
             let right = self.unary()?;
-            expression = Expression::Binary {
-                left: Box::new(expression),
-                operator: operator.clone(),
-                right: Box::new(right),
-            };
+            expression = Expression {
+                id: self.current,
+                kind: ExpressionKind::Binary {
+                    left: Box::new(expression),
+                    operator: operator.clone(),
+                    right: Box::new(right),
+                },
+            }
         }
         Ok(expression)
     }
@@ -501,9 +532,12 @@ impl<'a> Parser<'a> {
         if self.match_token(&[TT::Minus, TT::Bang]) {
             let operator = self.previous().clone();
             let right = self.unary()?;
-            return Ok(Expression::Unary {
-                operator,
-                right: Box::new(right),
+            return Ok(Expression {
+                id: self.current,
+                kind: ExpressionKind::Unary {
+                    operator,
+                    right: Box::new(right),
+                },
             });
         } else if self.match_token(&[
             TT::EqualEqual,
@@ -545,12 +579,17 @@ impl<'a> Parser<'a> {
             }
         }
 
-        let paren = self.consume(TT::RParen, String::from("expect ')' after arguments"))?;
+        let paren = self
+            .consume(TT::RParen, String::from("expect ')' after arguments"))?
+            .clone();
 
-        Ok(Expression::Call {
-            callee: Box::new(callee),
-            paren: paren.clone(),
-            arguments,
+        Ok(Expression {
+            id: self.current,
+            kind: ExpressionKind::Call {
+                callee: Box::new(callee),
+                paren,
+                arguments,
+            },
         })
     }
 
@@ -572,32 +611,53 @@ impl<'a> Parser<'a> {
         log!(self.logger, LogSection::ParserFuncInfo, "primary");
         let token = self.advance();
 
+        let kind: ExpressionKind;
+
         match token.token_type {
-            TT::True => Ok(Expression::Literal(LiteralValue::True)),
-            TT::False => Ok(Expression::Literal(LiteralValue::False)),
-            TT::Null => Ok(Expression::Literal(LiteralValue::Null)),
-            TT::String => Ok(Expression::Literal(LiteralValue::String(
-                token.lexeme.clone(),
-            ))),
+            TT::True => {
+                kind = ExpressionKind::Literal(LiteralValue::True);
+            }
+            TT::False => {
+                kind = ExpressionKind::Literal(LiteralValue::False);
+            }
+            TT::Null => {
+                kind = ExpressionKind::Literal(LiteralValue::Null);
+            }
+            TT::String => {
+                kind = ExpressionKind::Literal(LiteralValue::String(token.lexeme.clone()));
+            }
             TT::Number => {
                 let num = token.lexeme.parse::<f64>();
                 match num {
-                    Ok(v) => Ok(Expression::Literal(LiteralValue::Number(v))),
-                    Err(_) => Err(LoxError::Parse {
-                        message: String::from("number is not in valid format"),
-                    }),
-                }
+                    Ok(v) => {
+                        kind = ExpressionKind::Literal(LiteralValue::Number(v));
+                    }
+                    Err(_) => {
+                        return Err(LoxError::Parse {
+                            message: String::from("number is not in valid format"),
+                        });
+                    }
+                };
             }
             TT::LParen => {
                 let expression = self.expression()?;
                 self.consume(TT::RParen, String::from("expect ')' after expression"))?;
-                return Ok(Expression::Grouping(Box::new(expression)));
+                kind = ExpressionKind::Grouping(Box::new(expression));
             }
-            TT::Identifier => Ok(Expression::Variable(self.previous().clone())),
-            unknown => Err(LoxError::Parse {
-                message: format!("expect expression got {}", unknown),
-            }),
-        }
+            TT::Identifier => {
+                kind = ExpressionKind::Variable(self.previous().clone());
+            }
+            unknown => {
+                return Err(LoxError::Parse {
+                    message: format!("expect expression got {}", unknown),
+                });
+            }
+        };
+
+        Ok(Expression {
+            id: self.current,
+            kind,
+        })
     }
 
     fn match_token(&mut self, tt: &[TT]) -> bool {
@@ -659,37 +719,58 @@ mod tests {
     use crate::token::{Token, TokenType as TT};
 
     fn tr() -> Expression {
-        Expression::Literal(LiteralValue::True)
+        Expression {
+            id: 0,
+            kind: ExpressionKind::Literal(LiteralValue::True),
+        }
     }
 
     fn fl() -> Expression {
-        Expression::Literal(LiteralValue::False)
+        Expression {
+            id: 0,
+            kind: ExpressionKind::Literal(LiteralValue::False),
+        }
     }
 
     fn null() -> Expression {
-        Expression::Literal(LiteralValue::Null)
+        Expression {
+            id: 0,
+            kind: ExpressionKind::Literal(LiteralValue::Null),
+        }
     }
 
     fn num(n: f64) -> Expression {
-        Expression::Literal(LiteralValue::Number(n))
+        Expression {
+            id: 0,
+            kind: ExpressionKind::Literal(LiteralValue::Number(n)),
+        }
     }
 
     fn str(s: String) -> Expression {
-        Expression::Literal(LiteralValue::String(s))
+        Expression {
+            id: 0,
+            kind: ExpressionKind::Literal(LiteralValue::String(s)),
+        }
     }
 
     fn binary(left: Expression, operator: TT, right: Expression) -> Expression {
-        Expression::Binary {
-            left: Box::new(left),
-            operator: Token::new(operator, 0, 0, operator.test_lexeme().to_string()),
-            right: Box::new(right),
+        Expression {
+            id: 0,
+            kind: ExpressionKind::Binary {
+                left: Box::new(left),
+                operator: Token::new(operator, 0, 0, operator.test_lexeme().to_string()),
+                right: Box::new(right),
+            },
         }
     }
 
     fn unary(operator: TT, right: Expression) -> Expression {
-        Expression::Unary {
-            operator: Token::new(operator, 0, 0, operator.test_lexeme().to_string()),
-            right: Box::new(right),
+        Expression {
+            id: 0,
+            kind: ExpressionKind::Unary {
+                operator: Token::new(operator, 0, 0, operator.test_lexeme().to_string()),
+                right: Box::new(right),
+            },
         }
     }
 
@@ -698,17 +779,23 @@ mod tests {
         true_branch: Expression,
         false_branch: Expression,
     ) -> Expression {
-        Expression::Ternary {
-            condition: Box::new(condition),
-            true_branch: Box::new(true_branch),
-            false_branch: Box::new(false_branch),
+        Expression {
+            id: 0,
+            kind: ExpressionKind::Ternary {
+                condition: Box::new(condition),
+                true_branch: Box::new(true_branch),
+                false_branch: Box::new(false_branch),
+            },
         }
     }
 
     fn comma(left: Expression, right: Expression) -> Expression {
-        Expression::Comma {
-            left: Box::new(left),
-            right: Box::new(right),
+        Expression {
+            id: 0,
+            kind: ExpressionKind::Comma {
+                left: Box::new(left),
+                right: Box::new(right),
+            },
         }
     }
 
@@ -725,57 +812,64 @@ mod tests {
         )
     }
 
-    fn normalize_expression(expression: &Expression) -> Expression {
-        match expression {
-            Expression::Binary {
+    fn normalize_expression_kind(kind: &ExpressionKind) -> ExpressionKind {
+        match kind {
+            ExpressionKind::Binary {
                 left,
                 operator,
                 right,
             }
-            | Expression::Logical {
+            | ExpressionKind::Logical {
                 left,
                 operator,
                 right,
-            } => Expression::Binary {
+            } => ExpressionKind::Binary {
                 left: Box::new(normalize_expression(left)),
                 operator: normalize_token(operator),
                 right: Box::new(normalize_expression(right)),
             },
-            Expression::Assignment { name, value } => Expression::Assignment {
+            ExpressionKind::Assignment { name, value } => ExpressionKind::Assignment {
                 name: normalize_token(name),
                 value: Box::new(normalize_expression(value)),
             },
-            Expression::Unary { operator, right } => Expression::Unary {
+            ExpressionKind::Unary { operator, right } => ExpressionKind::Unary {
                 operator: normalize_token(operator),
                 right: Box::new(normalize_expression(right)),
             },
-            Expression::Call {
+            ExpressionKind::Call {
                 callee,
                 paren,
                 arguments,
-            } => Expression::Call {
+            } => ExpressionKind::Call {
                 callee: Box::new(normalize_expression(callee)),
                 paren: normalize_token(paren),
                 arguments: arguments.iter().map(|a| normalize_expression(a)).collect(),
             },
-            Expression::Literal(lit) => Expression::Literal(lit.clone()),
-            Expression::Grouping(inner) => {
-                Expression::Grouping(Box::new(normalize_expression(inner)))
+            ExpressionKind::Literal(lit) => ExpressionKind::Literal(lit.clone()),
+            ExpressionKind::Grouping(inner) => {
+                ExpressionKind::Grouping(Box::new(normalize_expression(inner)))
             }
-            Expression::Ternary {
+            ExpressionKind::Ternary {
                 condition,
                 true_branch,
                 false_branch,
-            } => Expression::Ternary {
+            } => ExpressionKind::Ternary {
                 condition: Box::new(normalize_expression(condition)),
                 true_branch: Box::new(normalize_expression(true_branch)),
                 false_branch: Box::new(normalize_expression(false_branch)),
             },
-            Expression::Comma { left, right } => Expression::Comma {
+            ExpressionKind::Comma { left, right } => ExpressionKind::Comma {
                 left: Box::new(normalize_expression(left)),
                 right: Box::new(normalize_expression(right)),
             },
-            Expression::Variable(var) => Expression::Variable(var.clone()),
+            ExpressionKind::Variable(var) => ExpressionKind::Variable(var.clone()),
+        }
+    }
+
+    fn normalize_expression(expression: &Expression) -> Expression {
+        Expression {
+            id: 0,
+            kind: normalize_expression_kind(&expression.kind),
         }
     }
 

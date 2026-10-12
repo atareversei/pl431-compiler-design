@@ -4,7 +4,7 @@ use crate::{
     callable::Callable,
     environment::Environment,
     error::LoxError,
-    expression::{Expression, LiteralValue},
+    expression::{Expression, ExpressionKind, LiteralValue},
     function::Function,
     log,
     logger::Logger,
@@ -266,7 +266,10 @@ impl<'a> Interpreter<'a> {
                 };
 
                 // handle value evaluation if value is not set to LiteralValue::Null
-                if &Some(Expression::Literal(LiteralValue::Null)) != initializer {
+                if !matches!(
+                    initializer.as_ref().map(|expression| &expression.kind),
+                    Some(ExpressionKind::Literal(LiteralValue::Null))
+                ) {
                     value = self.evaluate_expression(
                         initializer
                             .as_ref()
@@ -354,8 +357,8 @@ impl<'a> Interpreter<'a> {
     }
 
     pub fn evaluate_expression(&mut self, expression: &Expression) -> EvaluationResult {
-        match expression {
-            Expression::Ternary {
+        match &expression.kind {
+            ExpressionKind::Ternary {
                 condition,
                 true_branch,
                 false_branch,
@@ -372,7 +375,7 @@ impl<'a> Interpreter<'a> {
                     self.evaluate_expression(false_branch)
                 }
             }
-            Expression::Binary {
+            ExpressionKind::Binary {
                 left,
                 operator,
                 right,
@@ -472,7 +475,7 @@ impl<'a> Interpreter<'a> {
                     _ => unreachable!("binary only allows '+', '-', '*', and '/' as operators"),
                 }
             }
-            Expression::Assignment { name, value } => {
+            ExpressionKind::Assignment { name, value } => {
                 log!(
                     self.logger,
                     crate::logger::LogSection::RuntimeFuncInfoExpressions,
@@ -484,7 +487,7 @@ impl<'a> Interpreter<'a> {
                     .assign(&name.lexeme, value.clone())?;
                 Ok(value)
             }
-            Expression::Logical {
+            ExpressionKind::Logical {
                 left,
                 operator,
                 right,
@@ -504,7 +507,7 @@ impl<'a> Interpreter<'a> {
                 let right = self.evaluate_expression(right)?;
                 Ok(right)
             }
-            Expression::Unary { operator, right } => {
+            ExpressionKind::Unary { operator, right } => {
                 log!(
                     self.logger,
                     crate::logger::LogSection::RuntimeFuncInfoExpressions,
@@ -526,7 +529,7 @@ impl<'a> Interpreter<'a> {
                     _ => unreachable!("unary only allows '-' and '!' as operators"),
                 }
             }
-            Expression::Comma { left, right } => {
+            ExpressionKind::Comma { left, right } => {
                 log!(
                     self.logger,
                     crate::logger::LogSection::RuntimeFuncInfoExpressions,
@@ -535,7 +538,7 @@ impl<'a> Interpreter<'a> {
                 self.evaluate_expression(left)?;
                 self.evaluate_expression(right)
             }
-            Expression::Call {
+            ExpressionKind::Call {
                 callee,
                 paren,
                 arguments,
@@ -582,7 +585,7 @@ impl<'a> Interpreter<'a> {
                     result
                 }
             }
-            Expression::Grouping(expr) => {
+            ExpressionKind::Grouping(expr) => {
                 log!(
                     self.logger,
                     crate::logger::LogSection::RuntimeFuncInfoExpressions,
@@ -590,7 +593,7 @@ impl<'a> Interpreter<'a> {
                 );
                 self.evaluate_expression(expr)
             }
-            Expression::Literal(value) => {
+            ExpressionKind::Literal(value) => {
                 log!(
                     self.logger,
                     crate::logger::LogSection::RuntimeFuncInfoExpressions,
@@ -605,7 +608,7 @@ impl<'a> Interpreter<'a> {
                     LiteralValue::Null => Ok(Value::Null),
                 }
             }
-            Expression::Variable(name) => {
+            ExpressionKind::Variable(name) => {
                 log!(
                     self.logger,
                     crate::logger::LogSection::RuntimeFuncInfoExpressions,

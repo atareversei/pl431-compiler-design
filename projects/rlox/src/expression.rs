@@ -3,7 +3,13 @@ use std::fmt;
 use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expression {
+pub struct Expression {
+    pub id: usize,
+    pub kind: ExpressionKind,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExpressionKind {
     Ternary {
         condition: Box<Expression>,
         true_branch: Box<Expression>,

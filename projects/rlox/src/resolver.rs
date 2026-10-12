@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use crate::{
     error::LoxError,
-    expression::Expression,
+    expression::{Expression, ExpressionKind},
     interpreter::Interpreter,
     statement::{FunctionStatement, Statement},
     token::Token,
@@ -88,8 +88,8 @@ impl<'a> Resolver<'a> {
     }
 
     fn resolve_expression(&mut self, expression: &Expression) -> ResolveResultFn {
-        match expression {
-            Expression::Variable(variable) => {
+        match &expression.kind {
+            ExpressionKind::Variable(variable) => {
                 if self
                     .scopes
                     .last()
@@ -102,11 +102,11 @@ impl<'a> Resolver<'a> {
                 }
                 self.resolve_local(expression, variable);
             }
-            Expression::Assignment { name, value } => {
+            ExpressionKind::Assignment { name, value } => {
                 self.resolve_expression(value)?;
                 self.resolve_local(expression, name);
             }
-            Expression::Binary {
+            ExpressionKind::Binary {
                 operator: _,
                 left,
                 right,
@@ -114,7 +114,7 @@ impl<'a> Resolver<'a> {
                 self.resolve_expression(left)?;
                 self.resolve_expression(right)?;
             }
-            Expression::Call {
+            ExpressionKind::Call {
                 paren: _,
                 callee,
                 arguments,
@@ -124,10 +124,10 @@ impl<'a> Resolver<'a> {
                     self.resolve_expression(argument)?;
                 }
             }
-            Expression::Grouping(expression) => {
+            ExpressionKind::Grouping(expression) => {
                 self.resolve_expression(expression)?;
             }
-            Expression::Logical {
+            ExpressionKind::Logical {
                 operator: _,
                 left,
                 right,
@@ -135,14 +135,14 @@ impl<'a> Resolver<'a> {
                 self.resolve_expression(left)?;
                 self.resolve_expression(right)?;
             }
-            Expression::Unary { operator: _, right } => {
+            ExpressionKind::Unary { operator: _, right } => {
                 self.resolve_expression(right)?;
             }
-            Expression::Comma { left, right } => {
+            ExpressionKind::Comma { left, right } => {
                 self.resolve_expression(left)?;
                 self.resolve_expression(right)?;
             }
-            Expression::Ternary {
+            ExpressionKind::Ternary {
                 condition,
                 true_branch,
                 false_branch,
@@ -152,7 +152,7 @@ impl<'a> Resolver<'a> {
                 self.resolve_expression(false_branch)?;
             }
 
-            Expression::Literal(_) => {}
+            ExpressionKind::Literal(_) => {}
             _ => {}
         }
         Ok(())

@@ -1,8 +1,8 @@
-use crate::expression::Expression;
+use crate::expression::{Expression, ExpressionKind};
 
 pub fn ast(expr: &Expression) -> String {
-    match expr {
-        Expression::Ternary {
+    match &expr.kind {
+        ExpressionKind::Ternary {
             condition,
             true_branch,
             false_branch,
@@ -12,29 +12,29 @@ pub fn ast(expr: &Expression) -> String {
             ast(true_branch),
             ast(false_branch)
         ),
-        Expression::Binary {
+        ExpressionKind::Binary {
             left,
             operator,
             right,
         }
-        | Expression::Logical {
+        | ExpressionKind::Logical {
             left,
             operator,
             right,
         } => format!("({} {} {})", operator.lexeme, ast(left), ast(right)),
-        Expression::Assignment { name: _, value } => format!("{:?}", value),
-        Expression::Comma { left, right } => format!("({}, {})", ast(left), ast(right)),
-        Expression::Unary { operator, right } => {
+        ExpressionKind::Assignment { name: _, value } => format!("{:?}", value),
+        ExpressionKind::Comma { left, right } => format!("({}, {})", ast(left), ast(right)),
+        ExpressionKind::Unary { operator, right } => {
             format!("({} {})", operator.lexeme, ast(right))
         }
-        Expression::Call {
+        ExpressionKind::Call {
             callee,
             paren,
             arguments,
         } => format!("<fn>"),
-        Expression::Literal(v) => format!("{}", v),
-        Expression::Grouping(inner) => format!("(group {})", ast(inner)),
-        Expression::Variable(var) => format!("{}", var.lexeme),
+        ExpressionKind::Literal(v) => format!("{}", v),
+        ExpressionKind::Grouping(inner) => format!("(group {})", ast(inner)),
+        ExpressionKind::Variable(var) => format!("{}", var.lexeme),
     }
 }
 
@@ -49,10 +49,19 @@ mod tests {
 
     #[test]
     fn binary() {
-        let expression = Expression::Binary {
-            left: Box::new(Expression::Literal(LiteralValue::Number(1.0))),
-            operator: Token::new(TokenType::Plus, 0, 1, String::from("+")),
-            right: Box::new(Expression::Literal(LiteralValue::Number(2.0))),
+        let expression = Expression {
+            id: 0,
+            kind: ExpressionKind::Binary {
+                left: Box::new(Expression {
+                    id: 0,
+                    kind: ExpressionKind::Literal(LiteralValue::Number(1.0)),
+                }),
+                operator: Token::new(TokenType::Plus, 0, 1, String::from("+")),
+                right: Box::new(Expression {
+                    id: 0,
+                    kind: ExpressionKind::Literal(LiteralValue::Number(2.0)),
+                }),
+            },
         };
 
         let printed = ast(&expression);
