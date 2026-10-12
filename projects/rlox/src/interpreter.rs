@@ -9,7 +9,7 @@ use crate::{
     log,
     logger::Logger,
     statement::Statement,
-    token::TokenType as TT,
+    token::{Token, TokenType as TT},
 };
 
 pub struct ExecutionContext {
@@ -87,7 +87,7 @@ pub struct FunctionMetadata {
 
 pub struct Interpreter<'a> {
     environment: Rc<RefCell<Environment>>,
-    statements: Vec<Statement>,
+    statements: &'a Vec<Statement>,
     // TODO: implement IDs to be able to identify expressions to avoid implementing hashing and equality traits
     locals: HashMap<usize, usize>,
     logger: &'a Logger,
@@ -98,7 +98,11 @@ pub struct Interpreter<'a> {
 }
 
 impl<'a> Interpreter<'a> {
-    pub fn new(statements: Vec<Statement>, environment: Environment, logger: &'a Logger) -> Self {
+    pub fn new(
+        statements: &'a Vec<Statement>,
+        environment: Environment,
+        logger: &'a Logger,
+    ) -> Self {
         Interpreter {
             statements,
             environment: Rc::new(RefCell::new(environment)),
@@ -108,10 +112,6 @@ impl<'a> Interpreter<'a> {
             loop_flow: LoopFlow::Normal,
             function_stack: vec![],
         }
-    }
-
-    pub fn resolve(&mut self, expression: &Expression, depth: usize) {
-        self.locals.insert(0, depth);
     }
 
     pub fn interpret(&mut self) -> Result<ExecutionContext, LoxError> {
@@ -125,6 +125,20 @@ impl<'a> Interpreter<'a> {
         Ok(ExecutionContext {
             environment: self.environment.clone(),
             last_expr_value: value,
+        })
+    }
+
+    pub fn resolve(&mut self, expression: &Expression, depth: usize) {
+        self.locals.insert(expression.id, depth);
+    }
+
+    fn lookup_variable(&self, name: &Token, id: usize) -> Result<Value, LoxError> {
+        let distance = self.locals.get(&id);
+        if let Some(distance) = distance {
+            return Environment::get_at(&self.environment, *distance, &name.lexeme);
+        };
+        Err(LoxError::Runtime {
+            message: String::from("variable not found"),
         })
     }
 
@@ -357,6 +371,7 @@ impl<'a> Interpreter<'a> {
     }
 
     pub fn evaluate_expression(&mut self, expression: &Expression) -> EvaluationResult {
+        let id = expression.id;
         match &expression.kind {
             ExpressionKind::Ternary {
                 condition,
@@ -482,9 +497,16 @@ impl<'a> Interpreter<'a> {
                     "expr_assignment"
                 );
                 let value = self.evaluate_expression(value)?;
-                self.environment
-                    .borrow_mut()
-                    .assign(&name.lexeme, value.clone())?;
+                let distance = self.locals.get(&id);
+                if let Some(distance) = distance {
+                    Environment::assign_at(
+                        &self.environment,
+                        *distance,
+                        &name.lexeme,
+                        value.clone(),
+                    )?;
+                }
+
                 Ok(value)
             }
             ExpressionKind::Logical {
@@ -614,7 +636,7 @@ impl<'a> Interpreter<'a> {
                     crate::logger::LogSection::RuntimeFuncInfoExpressions,
                     "expr_variable"
                 );
-                self.environment.borrow_mut().get(&name.lexeme)
+                self.lookup_variable(name, id)
             }
         }
     }
@@ -693,7 +715,7 @@ mod tests {
         let parse_result = parser.parse();
         let environment = Environment::new();
         let logger = Logger::new_all_off();
-        let mut interpreter = Interpreter::new(parse_result.statements, environment, &logger);
+        let mut interpreter = Interpreter::new(&parse_result.statements, environment, &logger);
         interpreter.interpret()?;
         Ok(())
     }

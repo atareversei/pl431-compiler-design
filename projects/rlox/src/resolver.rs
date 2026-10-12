@@ -13,13 +13,13 @@ use crate::{
 
 type ResolveResultFn = Result<(), LoxError>;
 
-pub struct Resolver<'a> {
-    interpreter: Interpreter<'a>,
+pub struct Resolver<'resolver, 'interpreter> {
+    interpreter: &'resolver mut Interpreter<'interpreter>,
     scopes: Vec<HashMap<String, bool>>,
 }
 
-impl<'a> Resolver<'a> {
-    pub fn new(interpreter: Interpreter<'a>) -> Self {
+impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
+    pub fn new(interpreter: &'resolver mut Interpreter<'interpreter>) -> Self {
         Self {
             interpreter,
             scopes: Vec::new(),

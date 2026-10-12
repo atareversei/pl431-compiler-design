@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::{error::LoxError, interpreter::Value, native::clock::Clock};
+use crate::{environment, error::LoxError, interpreter::Value, native::clock::Clock};
 
 #[derive(Debug, Clone)]
 pub struct Environment {
@@ -68,11 +68,65 @@ impl Environment {
         }
     }
 
+    pub fn assign_at(
+        environment: &Rc<RefCell<Environment>>,
+        distance: usize,
+        name: &str,
+        value: Value,
+    ) -> Result<(), LoxError> {
+        let mut env = Rc::clone(environment);
+        for i in 0..distance {
+            let enclosing = env
+                .borrow()
+                .enclosing
+                .clone()
+                .ok_or_else(|| LoxError::Runtime {
+                    message: String::from("no enclosing environment found"),
+                })?;
+            env = enclosing;
+        }
+
+        if env.borrow_mut().values.contains_key(name) {
+            env.borrow_mut().values.insert(name.to_string(), value);
+            Ok(())
+        } else {
+            Err(LoxError::Runtime {
+                message: format!("undefined variable: '{}'", name),
+            })
+        }
+    }
+
     pub fn get(&self, name: &str) -> Result<Value, LoxError> {
         if let Some(value) = self.values.get(name) {
             Ok(value.clone())
         } else if let Some(ref enclosing) = self.enclosing {
             enclosing.borrow_mut().get(name)
+        } else {
+            Err(LoxError::Runtime {
+                message: format!("undefined variable: {}", name),
+            })
+        }
+    }
+
+    pub fn get_at(
+        environment: &Rc<RefCell<Environment>>,
+        distance: usize,
+        name: &str,
+    ) -> Result<Value, LoxError> {
+        let mut env = Rc::clone(environment);
+        for i in 0..distance {
+            let enclosing = env
+                .borrow()
+                .enclosing
+                .clone()
+                .ok_or_else(|| LoxError::Runtime {
+                    message: String::from("no enclosing environment found"),
+                })?;
+            env = enclosing;
+        }
+
+        if let Some(value) = env.borrow().values.get(name) {
+            Ok(value.clone())
         } else {
             Err(LoxError::Runtime {
                 message: format!("undefined variable: {}", name),

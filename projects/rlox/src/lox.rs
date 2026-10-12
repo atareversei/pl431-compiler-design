@@ -4,6 +4,7 @@ use crate::lexer::Lexer;
 use crate::log;
 use crate::logger::{LogSection, Logger};
 use crate::lox::RunMode::File;
+use crate::resolver::Resolver;
 use crate::{error::LoxError, parser::Parser};
 use std::{
     env, fs,
@@ -49,7 +50,11 @@ fn run_repl(logger: Logger) -> Result<(), Vec<LoxError>> {
             return Err(parse_result.errors);
         }
 
-        let mut interpreter = Interpreter::new(parse_result.statements, environment, &logger);
+        let mut interpreter = Interpreter::new(&parse_result.statements, environment, &logger);
+
+        let mut resolver = Resolver::new(&mut interpreter);
+        let resolution_result = resolver.resolve(&parse_result.statements);
+
         match interpreter.interpret() {
             Ok(ctx) => {
                 environment = ctx.environment.borrow().clone();
@@ -93,7 +98,11 @@ fn run_file(paths: Vec<String>, logger: Logger) -> Result<(), Vec<LoxError>> {
     }
 
     let mut environment = Environment::globals();
-    let mut interpreter = Interpreter::new(parse_result.statements, environment, &logger);
+    let mut interpreter = Interpreter::new(&parse_result.statements, environment, &logger);
+
+    let mut resolver = Resolver::new(&mut interpreter);
+    let resolution_result = resolver.resolve(&parse_result.statements);
+
     match interpreter.interpret() {
         Ok(ctx) => {
             println!("program executed successfully");
