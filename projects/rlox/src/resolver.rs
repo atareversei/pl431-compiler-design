@@ -34,13 +34,7 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
     }
 
     pub fn resolve(&mut self, statements: &Vec<Statement>) -> ResolveResultFn {
-        println!("----------------------------------------------");
         for statement in statements {
-            println!("{:#?}\n\n\n", statement);
-        }
-
-        for statement in statements {
-            log!(self.logger, LogSection::ResolverFuncInfo, "-------------");
             self.resolve_statement(statement)?;
         }
         Ok(())
@@ -71,7 +65,7 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
             }
             Statement::Expression(expression) => {
                 log!(self.logger, LogSection::ResolverFuncInfo, "Expression");
-                self.resolve_expression(expression);
+                self.resolve_expression(expression)?;
             }
             Statement::If { cond, body, elze } => {
                 log!(self.logger, LogSection::ResolverFuncInfo, "If");
@@ -120,7 +114,7 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                     == Some(&false)
                 {
                     return Err(LoxError::Parse {
-                        message: String::from(""),
+                        message: String::from("cannot read variable inside its own initializer"),
                     });
                 }
                 self.resolve_local(expression, variable);
@@ -220,7 +214,7 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
     fn resolve_local(&mut self, expression: &Expression, name: &Token) {
         log!(self.logger, LogSection::ResolverFuncInfo, "resolve_local");
         for (i, scope) in self.scopes.iter().enumerate().rev() {
-            if scope.contains_key(&name.lexeme) {
+            if scope.contains_key(&name.lexeme) || i == 0 {
                 self.interpreter
                     .resolve(expression, self.scopes.len() - 1 - i);
                 break;
