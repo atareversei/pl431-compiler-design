@@ -10,6 +10,7 @@ pub enum LogSection {
     ParserConsumedTokens,
     ParserStatements,
     ParserFuncInfo,
+    ResolverFuncInfo,
     RuntimeFuncInfoStatements,
     RuntimeFuncInfoExpressions,
 }
@@ -20,6 +21,7 @@ pub struct Logger {
     pub parser_consumed_tokens: bool,
     pub parser_statements: bool,
     pub parser_func_info: bool,
+    pub resolver_func_info: bool,
     pub runtime_func_info_statements: bool,
     pub runtime_func_info_expressions: bool,
 }
@@ -32,6 +34,7 @@ impl Logger {
             parser_consumed_tokens: config.log_parser_consumed_tokens,
             parser_statements: config.log_parser_statements,
             parser_func_info: config.log_parser_func_info,
+            resolver_func_info: config.log_resolver_func_info,
             runtime_func_info_statements: config.log_runtime_func_info_statements,
             runtime_func_info_expressions: config.log_runtime_func_info_expressions,
         }
@@ -44,6 +47,7 @@ impl Logger {
             parser_consumed_tokens: false,
             parser_statements: false,
             parser_func_info: false,
+            resolver_func_info: false,
             runtime_func_info_statements: false,
             runtime_func_info_expressions: false,
         }
@@ -56,6 +60,7 @@ impl Logger {
             LogSection::ParserConsumedTokens => self.parser_consumed_tokens,
             LogSection::ParserStatements => self.parser_statements,
             LogSection::ParserFuncInfo => self.parser_func_info,
+            LogSection::ResolverFuncInfo => self.resolver_func_info,
             LogSection::RuntimeFuncInfoStatements => self.runtime_func_info_statements,
             LogSection::RuntimeFuncInfoExpressions => self.runtime_func_info_expressions,
         }

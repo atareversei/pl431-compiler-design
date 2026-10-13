@@ -7,7 +7,7 @@ use crate::{
     expression::{Expression, ExpressionKind, LiteralValue},
     function::Function,
     log,
-    logger::Logger,
+    logger::{LogSection, Logger},
     statement::Statement,
     token::{Token, TokenType as TT},
 };
@@ -129,6 +129,13 @@ impl<'a> Interpreter<'a> {
     }
 
     pub fn resolve(&mut self, expression: &Expression, depth: usize) {
+        log!(
+            self.logger,
+            LogSection::ResolverFuncInfo,
+            "resolved variable:\n\texpression: {:?}\n\tdepth: {}",
+            expression,
+            depth
+        );
         self.locals.insert(expression.id, depth);
     }
 
@@ -138,7 +145,7 @@ impl<'a> Interpreter<'a> {
             return Environment::get_at(&self.environment, *distance, &name.lexeme);
         };
         Err(LoxError::Runtime {
-            message: String::from("variable not found"),
+            message: format!("variable {:?} not found", name.lexeme),
         })
     }
 
@@ -685,7 +692,7 @@ impl<'a> Interpreter<'a> {
 mod tests {
     use std::{fs, path::PathBuf};
 
-    use crate::{lexer::Lexer, logger::Logger, parser::Parser};
+    use crate::{lexer::Lexer, logger::Logger, parser::Parser, resolver::Resolver};
 
     use super::*;
 
@@ -716,6 +723,8 @@ mod tests {
         let environment = Environment::new();
         let logger = Logger::new_all_off();
         let mut interpreter = Interpreter::new(&parse_result.statements, environment, &logger);
+        let mut resolver = Resolver::new(&mut interpreter, &logger);
+        let resolution_result = resolver.resolve(&parse_result.statements);
         interpreter.interpret()?;
         Ok(())
     }

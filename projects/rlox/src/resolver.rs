@@ -7,6 +7,8 @@ use crate::{
     error::LoxError,
     expression::{Expression, ExpressionKind},
     interpreter::Interpreter,
+    log,
+    logger::{LogSection, Logger},
     statement::{FunctionStatement, Statement},
     token::Token,
 };
@@ -16,18 +18,29 @@ type ResolveResultFn = Result<(), LoxError>;
 pub struct Resolver<'resolver, 'interpreter> {
     interpreter: &'resolver mut Interpreter<'interpreter>,
     scopes: Vec<HashMap<String, bool>>,
+    logger: &'resolver Logger,
 }
 
 impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
-    pub fn new(interpreter: &'resolver mut Interpreter<'interpreter>) -> Self {
+    pub fn new(
+        interpreter: &'resolver mut Interpreter<'interpreter>,
+        logger: &'resolver Logger,
+    ) -> Self {
         Self {
             interpreter,
-            scopes: Vec::new(),
+            scopes: vec![HashMap::new()],
+            logger,
         }
     }
 
     pub fn resolve(&mut self, statements: &Vec<Statement>) -> ResolveResultFn {
+        println!("----------------------------------------------");
         for statement in statements {
+            println!("{:#?}\n\n\n", statement);
+        }
+
+        for statement in statements {
+            log!(self.logger, LogSection::ResolverFuncInfo, "-------------");
             self.resolve_statement(statement)?;
         }
         Ok(())
@@ -36,11 +49,13 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
     fn resolve_statement(&mut self, statement: &Statement) -> ResolveResultFn {
         match statement {
             Statement::Block(statements) => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Block");
                 self.begin_scope();
                 self.resolve(statements)?;
                 self.end_scope();
             }
             Statement::Var { name, initializer } => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Var");
                 self.declare(&name);
                 if let Some(init) = &initializer {
                     self.resolve_expression(init)?;
@@ -48,15 +63,18 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                 self.define(&name);
             }
             Statement::Function(function) => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Function");
                 self.declare(&function.name);
                 self.define(&function.name);
 
-                self.resolve_function(function);
+                self.resolve_function(function)?;
             }
             Statement::Expression(expression) => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Expression");
                 self.resolve_expression(expression);
             }
             Statement::If { cond, body, elze } => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "If");
                 self.resolve_expression(cond)?;
                 self.resolve_statement(body)?;
                 if let Some(el) = elze {
@@ -64,9 +82,11 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                 }
             }
             Statement::Print(expression) => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Print");
                 self.resolve_expression(expression)?;
             }
             Statement::Return(expression) => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Return");
                 if let Some(expr) = expression {
                     self.resolve_expression(expr)?;
                 }
@@ -76,6 +96,7 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                 cond,
                 body,
             } => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "For");
                 if let Some(inc) = increment {
                     self.resolve_expression(inc)?;
                 };
@@ -90,6 +111,8 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
     fn resolve_expression(&mut self, expression: &Expression) -> ResolveResultFn {
         match &expression.kind {
             ExpressionKind::Variable(variable) => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Variable");
+
                 if self
                     .scopes
                     .last()
@@ -103,6 +126,7 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                 self.resolve_local(expression, variable);
             }
             ExpressionKind::Assignment { name, value } => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Assignment");
                 self.resolve_expression(value)?;
                 self.resolve_local(expression, name);
             }
@@ -111,6 +135,7 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                 left,
                 right,
             } => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Binary");
                 self.resolve_expression(left)?;
                 self.resolve_expression(right)?;
             }
@@ -119,12 +144,14 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                 callee,
                 arguments,
             } => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Call");
                 self.resolve_expression(callee)?;
                 for argument in arguments {
                     self.resolve_expression(argument)?;
                 }
             }
             ExpressionKind::Grouping(expression) => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Grouping");
                 self.resolve_expression(expression)?;
             }
             ExpressionKind::Logical {
@@ -132,13 +159,16 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                 left,
                 right,
             } => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Logical");
                 self.resolve_expression(left)?;
                 self.resolve_expression(right)?;
             }
             ExpressionKind::Unary { operator: _, right } => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Unary");
                 self.resolve_expression(right)?;
             }
             ExpressionKind::Comma { left, right } => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Comma");
                 self.resolve_expression(left)?;
                 self.resolve_expression(right)?;
             }
@@ -147,12 +177,15 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                 true_branch,
                 false_branch,
             } => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Ternary");
                 self.resolve_expression(condition)?;
                 self.resolve_expression(true_branch)?;
                 self.resolve_expression(false_branch)?;
             }
 
-            ExpressionKind::Literal(_) => {}
+            ExpressionKind::Literal(_) => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Literal");
+            }
             _ => {}
         }
         Ok(())
@@ -160,36 +193,53 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
     }
 
     fn resolve_function(&mut self, function: &FunctionStatement) -> ResolveResultFn {
+        log!(
+            self.logger,
+            LogSection::ResolverFuncInfo,
+            "resolve_function"
+        );
         self.begin_scope();
         for param in &function.parameters {
             self.declare(&param);
             self.define(&param);
         }
         if let Some(body) = &function.body {
-            self.resolve_statement(body.as_ref())?;
+            match body.as_ref() {
+                Statement::Block(statements) => {
+                    self.resolve(statements)?;
+                }
+                other => {
+                    self.resolve_statement(other)?;
+                }
+            };
         }
         self.end_scope();
         Ok(())
     }
 
     fn resolve_local(&mut self, expression: &Expression, name: &Token) {
+        log!(self.logger, LogSection::ResolverFuncInfo, "resolve_local");
         for (i, scope) in self.scopes.iter().enumerate().rev() {
             if scope.contains_key(&name.lexeme) {
                 self.interpreter
                     .resolve(expression, self.scopes.len() - 1 - i);
+                break;
             }
         }
     }
 
     fn begin_scope(&mut self) {
+        log!(self.logger, LogSection::ResolverFuncInfo, "begin_scope");
         self.scopes.push(HashMap::new());
     }
 
     fn end_scope(&mut self) {
+        log!(self.logger, LogSection::ResolverFuncInfo, "end_scope");
         self.scopes.pop();
     }
 
     fn declare(&mut self, name: &Token) {
+        log!(self.logger, LogSection::ResolverFuncInfo, "declare");
         if self.scopes.is_empty() {
             return;
         }
@@ -200,6 +250,7 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
     }
 
     fn define(&mut self, name: &Token) {
+        log!(self.logger, LogSection::ResolverFuncInfo, "define");
         if self.scopes.is_empty() {
             return;
         }

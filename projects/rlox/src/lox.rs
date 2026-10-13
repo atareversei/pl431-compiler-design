@@ -52,7 +52,7 @@ fn run_repl(logger: Logger) -> Result<(), Vec<LoxError>> {
 
         let mut interpreter = Interpreter::new(&parse_result.statements, environment, &logger);
 
-        let mut resolver = Resolver::new(&mut interpreter);
+        let mut resolver = Resolver::new(&mut interpreter, &logger);
         let resolution_result = resolver.resolve(&parse_result.statements);
 
         match interpreter.interpret() {
@@ -100,7 +100,7 @@ fn run_file(paths: Vec<String>, logger: Logger) -> Result<(), Vec<LoxError>> {
     let mut environment = Environment::globals();
     let mut interpreter = Interpreter::new(&parse_result.statements, environment, &logger);
 
-    let mut resolver = Resolver::new(&mut interpreter);
+    let mut resolver = Resolver::new(&mut interpreter, &logger);
     let resolution_result = resolver.resolve(&parse_result.statements);
 
     match interpreter.interpret() {
@@ -127,6 +127,7 @@ pub struct Config {
     pub log_parser_statements: bool,
     pub log_parser_consumed_tokens: bool,
     pub log_parser_func_info: bool,
+    pub log_resolver_func_info: bool,
     pub log_runtime_func_info_statements: bool,
     pub log_runtime_func_info_expressions: bool,
 }
@@ -140,6 +141,7 @@ pub fn parse_args() -> Result<Config, LoxError> {
         log_parser_consumed_tokens: false,
         log_parser_statements: false,
         log_parser_func_info: false,
+        log_resolver_func_info: false,
         log_runtime_func_info_statements: false,
         log_runtime_func_info_expressions: false,
     };
@@ -149,6 +151,7 @@ pub fn parse_args() -> Result<Config, LoxError> {
             "--log-parser-consumed-tokens" => config.log_parser_consumed_tokens = true,
             "--log-parser-statements" => config.log_parser_statements = true,
             "--log-parser-func-info" => config.log_parser_func_info = true,
+            "--log-resolver-func-info" => config.log_resolver_func_info = true,
             "--log-runtime-func-info-statements" => config.log_runtime_func_info_statements = true,
             "--log-runtime-func-info-expressions" => {
                 config.log_runtime_func_info_expressions = true
