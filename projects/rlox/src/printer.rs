@@ -1,3 +1,5 @@
+use std::fmt::format;
+
 use crate::expression::{Expression, ExpressionKind};
 
 pub fn ast(expr: &Expression) -> String {
@@ -23,6 +25,11 @@ pub fn ast(expr: &Expression) -> String {
             right,
         } => format!("({} {} {})", operator.lexeme, ast(left), ast(right)),
         ExpressionKind::Assignment { name: _, value } => format!("{:?}", value),
+        ExpressionKind::Set {
+            object,
+            name,
+            value,
+        } => format!("property set {} = {}", name, ast(value)),
         ExpressionKind::Comma { left, right } => format!("({}, {})", ast(left), ast(right)),
         ExpressionKind::Unary { operator, right } => {
             format!("({} {})", operator.lexeme, ast(right))
@@ -32,6 +39,7 @@ pub fn ast(expr: &Expression) -> String {
             paren,
             arguments,
         } => format!("<fn>"),
+        ExpressionKind::Get { object, name } => format!("property access {}", name.lexeme),
         ExpressionKind::Literal(v) => format!("{}", v),
         ExpressionKind::Grouping(inner) => format!("(group {})", ast(inner)),
         ExpressionKind::Variable(var) => format!("{}", var.lexeme),

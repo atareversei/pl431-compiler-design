@@ -67,6 +67,7 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                 log!(self.logger, LogSection::ResolverFuncInfo, "Class");
                 self.declare(name);
                 self.define(name);
+                
             }
             Statement::Expression(expression) => {
                 log!(self.logger, LogSection::ResolverFuncInfo, "Expression");
@@ -129,6 +130,15 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                 self.resolve_expression(value)?;
                 self.resolve_local(expression, name);
             }
+            ExpressionKind::Set {
+                object,
+                name,
+                value,
+            } => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Set");
+                self.resolve_expression(object)?;
+                self.resolve_expression(value)?;
+            }
             ExpressionKind::Binary {
                 operator: _,
                 left,
@@ -182,13 +192,16 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                 self.resolve_expression(false_branch)?;
             }
 
+            ExpressionKind::Get { object, name } => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Get");
+                self.resolve_expression(object)?;
+            }
+
             ExpressionKind::Literal(_) => {
                 log!(self.logger, LogSection::ResolverFuncInfo, "Literal");
             }
-            _ => {}
         }
         Ok(())
-        // TODO: implement
     }
 
     fn resolve_function(&mut self, function: &FunctionStatement) -> ResolveResultFn {

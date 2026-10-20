@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     callable::Callable,
@@ -29,7 +29,7 @@ impl Callable for Class {
         arguments: Vec<Value>,
     ) -> Result<Value, LoxError> {
         let instance = Instance::new(self.clone());
-        Ok(Value::Instance(Rc::new(instance)))
+        Ok(Value::Instance(Rc::new(RefCell::new(instance))))
     }
 
     fn name(&self) -> String {

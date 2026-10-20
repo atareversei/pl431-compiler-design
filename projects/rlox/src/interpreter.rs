@@ -32,7 +32,7 @@ pub enum Value {
     Null,
     Callable(Rc<dyn Callable>),
     Class(Rc<Class>),
-    Instance(Rc<Instance>),
+    Instance(Rc<RefCell<Instance>>),
 }
 
 impl Value {
@@ -545,6 +545,24 @@ impl<'a> Interpreter<'a> {
 
                 Ok(value)
             }
+            ExpressionKind::Set {
+                object,
+                name,
+                value,
+            } => {
+                let obj = self.evaluate_expression(object)?;
+                match obj {
+                    Value::Instance(instance) => {
+                        let value = self.evaluate_expression(value)?;
+                        instance.borrow_mut().set(name.lexeme.clone(), value);
+                        // Ok(value)
+                        Ok(Value::Null)
+                    }
+                    _ => Err(LoxError::Runtime {
+                        message: String::from("only instances have fields"),
+                    }),
+                }
+            }
             ExpressionKind::Logical {
                 left,
                 operator,
@@ -641,6 +659,17 @@ impl<'a> Interpreter<'a> {
                     let a = self.function_stack.pop();
 
                     result
+                }
+            }
+            ExpressionKind::Get { object, name } => {
+                let value = self.evaluate_expression(object)?;
+                match value {
+                    Value::Instance(instance) => {
+                        Ok(instance.borrow().get(name.lexeme.clone())?.clone())
+                    }
+                    _ => Err(LoxError::Runtime {
+                        message: String::from("only instances have properties"),
+                    }),
                 }
             }
             ExpressionKind::Grouping(expr) => {

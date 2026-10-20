@@ -29,6 +29,11 @@ pub enum ExpressionKind {
         name: Token,
         value: Box<Expression>,
     },
+    Set {
+        object: Box<Expression>,
+        name: Token,
+        value: Box<Expression>,
+    },
     Unary {
         operator: Token,
         right: Box<Expression>,
@@ -41,6 +46,10 @@ pub enum ExpressionKind {
         callee: Box<Expression>,
         paren: Token,
         arguments: Vec<Expression>,
+    },
+    Get {
+        object: Box<Expression>,
+        name: Token,
     },
     Variable(Token),
     Grouping(Box<Expression>),
