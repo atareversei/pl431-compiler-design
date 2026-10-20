@@ -18,6 +18,10 @@ pub enum Statement {
         name: Token,
         initializer: Option<Expression>,
     },
+    Class {
+        name: Token,
+        methods: Vec<FunctionStatement>,
+    },
     For {
         increment: Option<Expression>,
         cond: Expression,

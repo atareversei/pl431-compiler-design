@@ -2,14 +2,19 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     callable::Callable,
+    class::Class,
     environment::Environment,
     error::LoxError,
     expression::{Expression, ExpressionKind, LiteralValue},
     function::Function,
+    instance::Instance,
     log,
     logger::{LogSection, Logger},
     statement::Statement,
-    token::{Token, TokenType as TT},
+    token::{
+        Token,
+        TokenType::{self as TT},
+    },
 };
 
 pub struct ExecutionContext {
@@ -26,6 +31,8 @@ pub enum Value {
     Boolean(bool),
     Null,
     Callable(Rc<dyn Callable>),
+    Class(Rc<Class>),
+    Instance(Rc<Instance>),
 }
 
 impl Value {
@@ -58,6 +65,12 @@ impl std::fmt::Debug for Value {
 
             Value::Callable(_) => {
                 write!(f, "<callable>")
+            }
+            Value::Class(_) => {
+                write!(f, "<class>")
+            }
+            Value::Instance(_) => {
+                write!(f, "<instance>")
             }
         }
     }
@@ -182,6 +195,22 @@ impl<'a> Interpreter<'a> {
                     function.name.lexeme.to_string(),
                     Value::Callable(Rc::new(func)),
                 );
+                Ok(None)
+            }
+            Statement::Class { name, methods } => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoStatements,
+                    "class <{:?}>",
+                    name.lexeme,
+                );
+                self.environment
+                    .borrow_mut()
+                    .define(name.lexeme.to_string(), Value::Null);
+                let class = Class::new(name.lexeme.clone());
+                self.environment
+                    .borrow_mut()
+                    .assign(&name.lexeme, Value::Class(Rc::new(class)))?;
                 Ok(None)
             }
             Statement::For {

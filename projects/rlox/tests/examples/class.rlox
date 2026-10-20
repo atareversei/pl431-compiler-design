@@ -1,0 +1,7 @@
+class Person {
+  sayHello(name) {
+    print "Hello " + name;
+  }
+}
+
+print Person;

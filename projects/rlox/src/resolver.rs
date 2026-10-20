@@ -63,6 +63,11 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
 
                 self.resolve_function(function)?;
             }
+            Statement::Class { name, methods } => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Class");
+                self.declare(name);
+                self.define(name);
+            }
             Statement::Expression(expression) => {
                 log!(self.logger, LogSection::ResolverFuncInfo, "Expression");
                 self.resolve_expression(expression)?;

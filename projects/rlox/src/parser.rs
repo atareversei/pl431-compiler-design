@@ -93,6 +93,10 @@ impl<'a> Parser<'a> {
                 self.advance();
                 self.function("function".to_string())
             }
+            TT::Class => {
+                self.advance();
+                self.class()
+            }
             _ => self.statement(),
         }
     }
@@ -147,6 +151,29 @@ impl<'a> Parser<'a> {
             parameters,
             body: Some(Box::new(body)),
         }))
+    }
+
+    fn class(&mut self) -> ParseStmtResultFn {
+        log!(self.logger, LogSection::ParserFuncInfo, "class");
+        let name = self
+            .consume(TT::Identifier, String::from("expect class name"))?
+            .clone();
+        self.consume(TT::LBrace, String::from("expect '{' before class body"));
+
+        let mut methods: Vec<FunctionStatement> = Vec::new();
+        while !self.check(TT::RBrace) && !self.is_at_end() {
+            let method = self.function(String::from("method"))?;
+            match method {
+                Statement::Function(func) => methods.push(func),
+                _ => {
+                    unreachable!("implementation error: expect function statement")
+                }
+            }
+        }
+
+        self.consume(TT::RBrace, String::from("expect '}' after class body"));
+
+        Ok(Statement::Class { name, methods })
     }
 
     fn statement(&mut self) -> ParseStmtResultFn {
@@ -890,6 +917,10 @@ mod tests {
                     .as_ref()
                     .map(|e| Box::new(normalize_statement(e.as_ref()))),
             }),
+            Statement::Class { name, methods } => Statement::Class {
+                name: normalize_token(name),
+                methods: methods.clone(),
+            },
             Statement::Var { name, initializer } => match initializer {
                 Some(expr) => Statement::Var {
                     name: name.clone(),
