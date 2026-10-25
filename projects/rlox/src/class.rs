@@ -30,7 +30,12 @@ impl Class {
 
 impl Callable for Class {
     fn arity(&self) -> usize {
-        0
+        let initializer_fn = self.find_method("init".to_string());
+        if let Some(initializer) = initializer_fn {
+            initializer.arity()
+        } else {
+            0
+        }
     }
 
     fn call(
@@ -39,7 +44,14 @@ impl Callable for Class {
         arguments: Vec<Value>,
     ) -> Result<Value, LoxError> {
         let instance = Instance::new(self.clone());
-        Ok(Value::Instance(Rc::new(RefCell::new(instance))))
+        let instance = Rc::new(RefCell::new(instance));
+        let initializer_fn = self.find_method("init".to_string());
+        if let Some(initializer) = initializer_fn {
+            initializer
+                .bind(instance.clone())
+                .call(interpreter, arguments)?;
+        };
+        Ok(Value::Instance(instance))
     }
 
     fn name(&self) -> String {

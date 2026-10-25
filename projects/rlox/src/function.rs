@@ -13,27 +13,31 @@ use crate::{
 pub struct Function {
     declaration: FunctionStatement,
     closure: Rc<RefCell<Environment>>,
+    is_initializer: bool,
 }
 
 impl Function {
-    pub fn new(declaration: FunctionStatement, closure: Rc<RefCell<Environment>>) -> Self {
+    pub fn new(
+        declaration: FunctionStatement,
+        closure: Rc<RefCell<Environment>>,
+        is_initializer: bool,
+    ) -> Self {
         Self {
             declaration,
             closure,
+            is_initializer,
         }
     }
 }
 
 impl Function {
-    pub fn bind(&self, instance: Instance) -> Self {
+    pub fn bind(&self, instance: Rc<RefCell<Instance>>) -> Self {
         let mut environment = Environment::new_enclosed(self.closure.clone());
-        environment.define(
-            "this".to_string(),
-            Value::Instance(Rc::new(RefCell::new(instance))),
-        );
+        environment.define("this".to_string(), Value::Instance(instance));
         Function {
             declaration: self.declaration.clone(),
             closure: Rc::new(RefCell::new(environment)),
+            is_initializer: self.is_initializer,
         }
     }
 }
@@ -62,11 +66,19 @@ impl Callable for Function {
         };
 
         interpreter.execute_statement(body.as_ref(), Some(environment))?;
-        let value = interpreter
-            .function_stack
-            .last()
-            .map_or(Value::Null, |f| f.returned.clone());
+        let value = interpreter.function_stack.last().map_or_else(
+            || {
+                if self.is_initializer {
+                    return Environment::get_at(&self.closure, 0, "this");
+                }
+                Ok(Value::Null)
+            },
+            |f| Ok(f.returned.clone()),
+        )?;
 
+        if self.is_initializer {
+            return Environment::get_at(&self.closure, 0, "this");
+        }
         Ok(value)
     }
 }

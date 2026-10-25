@@ -20,6 +20,7 @@ enum FunctionKind {
     None,
     Function,
     Method,
+    Initializer,
 }
 
 #[derive(Clone, PartialEq)]
@@ -93,7 +94,11 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                     .expect("a scope has begun")
                     .insert(String::from("this"), true);
                 for method in methods {
-                    self.resolve_function(method, FunctionKind::Method)?;
+                    let mut declaration = FunctionKind::Method;
+                    if method.name.lexeme.eq("init") {
+                        declaration = FunctionKind::Initializer;
+                    }
+                    self.resolve_function(method, declaration)?;
                 }
                 self.end_scope();
                 self.curr_class_kind = enclosing_class_kind;
@@ -124,6 +129,11 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                     });
                 }
                 if let Some(expr) = expression {
+                    if self.curr_func_kind == FunctionKind::Initializer {
+                        return Err(LoxError::Runtime {
+                            message: String::from("cannot return value from an initializer"),
+                        });
+                    }
                     self.resolve_expression(expr)?;
                 }
             }

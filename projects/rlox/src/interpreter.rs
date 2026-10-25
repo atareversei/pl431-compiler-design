@@ -190,7 +190,7 @@ impl<'a> Interpreter<'a> {
                     "function <{:?}>",
                     function.name.lexeme,
                 );
-                let func = Function::new(function.clone(), self.environment.clone());
+                let func = Function::new(function.clone(), self.environment.clone(), false);
                 self.environment.borrow_mut().define(
                     function.name.lexeme.to_string(),
                     Value::Callable(Rc::new(func)),
@@ -209,7 +209,7 @@ impl<'a> Interpreter<'a> {
                     .define(name.lexeme.to_string(), Value::Null);
                 let mut processed_methods: HashMap<String, Function> = HashMap::new();
                 for method in methods {
-                    let function = Function::new(method.clone(), self.environment.clone());
+                    let function = Function::new(method.clone(), self.environment.clone(), method.name.lexeme.eq("init"));
                     processed_methods.insert(method.name.lexeme.clone(), function);
                 }
                 let class = Class::new(name.lexeme.clone(), processed_methods);
