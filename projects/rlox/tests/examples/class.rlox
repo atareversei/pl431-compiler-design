@@ -1,7 +1,13 @@
 class Person {
-  sayHello(name) {
-    print "Hello " + name;
+  init(name) {
+    this.name = name;
+  }
+
+  sayHello(greeting) {
+    print greeting + " " + this.name;
   }
 }
 
-print Person;
+var john = Person("john");
+
+john.sayHello("hi");

@@ -1050,7 +1050,7 @@ mod tests {
             TT::BangEqual,
             unary(
                 TT::Bang,
-                unary(TT::Bang, unary(TT::Bang, str("\"rlox\"".to_string()))),
+                unary(TT::Bang, unary(TT::Bang, str("rlox".to_string()))),
             ),
         ));
 
@@ -1071,7 +1071,7 @@ mod tests {
             ternary(
                 binary(unary(TT::Bang, unary(TT::Bang, tr())), TT::Less, num(1.0)),
                 binary(num(0.0), TT::LessEqual, fl()),
-                binary(num(3.0), TT::EqualEqual, str("\"rlox\"".to_string())),
+                binary(num(3.0), TT::EqualEqual, str("rlox".to_string())),
             ),
         ));
 

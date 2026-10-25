@@ -206,10 +206,15 @@ impl<'a> Lexer<'a> {
             });
         }
 
-        // consume `"`.
+        // avoid `"` becoming part of the string.
+        self.start += 1;
+        let token = self.new_token(TT::String);
+
+        // avoid `"` becoming part of the string so we consume `"` after
+        // calling `new_token`.
         self.advance();
 
-        Ok(Some(self.new_token(TT::String)))
+        Ok(Some(token))
     }
 
     fn number(&mut self) -> LexResultFn {

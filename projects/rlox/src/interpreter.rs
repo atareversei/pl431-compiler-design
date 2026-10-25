@@ -209,13 +209,17 @@ impl<'a> Interpreter<'a> {
                     .define(name.lexeme.to_string(), Value::Null);
                 let mut processed_methods: HashMap<String, Function> = HashMap::new();
                 for method in methods {
-                    let function = Function::new(method.clone(), self.environment.clone(), method.name.lexeme.eq("init"));
+                    let function = Function::new(
+                        method.clone(),
+                        self.environment.clone(),
+                        method.name.lexeme.eq("init"),
+                    );
                     processed_methods.insert(method.name.lexeme.clone(), function);
                 }
                 let class = Class::new(name.lexeme.clone(), processed_methods);
                 self.environment
                     .borrow_mut()
-                    .assign(&name.lexeme, Value::Class(Rc::new(class)))?;
+                    .assign(&name.lexeme, Value::Callable(Rc::new(class)))?;
                 Ok(None)
             }
             Statement::For {
@@ -833,6 +837,12 @@ mod tests {
     #[test]
     fn returns() {
         let result = get_result("return.rlox");
+        assert_eq!(result, Ok(()))
+    }
+
+    #[test]
+    fn classes() {
+        let result = get_result("class.rlox");
         assert_eq!(result, Ok(()))
     }
 }
