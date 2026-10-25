@@ -51,6 +51,7 @@ pub enum ExpressionKind {
         object: Box<Expression>,
         name: Token,
     },
+    This(Token),
     Variable(Token),
     Grouping(Box<Expression>),
     Literal(LiteralValue),

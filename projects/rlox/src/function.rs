@@ -4,10 +4,12 @@ use crate::{
     callable::Callable,
     environment::{self, Environment},
     error::LoxError,
+    instance::Instance,
     interpreter::{Interpreter, Value},
     statement::FunctionStatement,
 };
 
+#[derive(Clone)]
 pub struct Function {
     declaration: FunctionStatement,
     closure: Rc<RefCell<Environment>>,
@@ -18,6 +20,20 @@ impl Function {
         Self {
             declaration,
             closure,
+        }
+    }
+}
+
+impl Function {
+    pub fn bind(&self, instance: Instance) -> Self {
+        let mut environment = Environment::new_enclosed(self.closure.clone());
+        environment.define(
+            "this".to_string(),
+            Value::Instance(Rc::new(RefCell::new(instance))),
+        );
+        Function {
+            declaration: self.declaration.clone(),
+            closure: Rc::new(RefCell::new(environment)),
         }
     }
 }

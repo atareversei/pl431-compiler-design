@@ -15,9 +15,24 @@ use crate::{
 
 type ResolveResultFn = Result<(), LoxError>;
 
+#[derive(Clone, PartialEq)]
+enum FunctionKind {
+    None,
+    Function,
+    Method,
+}
+
+#[derive(Clone, PartialEq)]
+enum ClassKind {
+    None,
+    Class,
+}
+
 pub struct Resolver<'resolver, 'interpreter> {
     interpreter: &'resolver mut Interpreter<'interpreter>,
     scopes: Vec<HashMap<String, bool>>,
+    curr_func_kind: FunctionKind,
+    curr_class_kind: ClassKind,
     logger: &'resolver Logger,
 }
 
@@ -29,6 +44,8 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
         Self {
             interpreter,
             scopes: vec![HashMap::new()],
+            curr_func_kind: FunctionKind::None,
+            curr_class_kind: ClassKind::None,
             logger,
         }
     }
@@ -61,14 +78,27 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                 self.declare(&function.name);
                 self.define(&function.name);
 
-                self.resolve_function(function)?;
+                self.resolve_function(function, FunctionKind::Function)?;
             }
             Statement::Class { name, methods } => {
                 log!(self.logger, LogSection::ResolverFuncInfo, "Class");
+                let enclosing_class_kind = self.curr_class_kind.clone();
+                self.curr_class_kind = ClassKind::Class;
                 self.declare(name);
                 self.define(name);
-                
+
+                self.begin_scope();
+                self.scopes
+                    .last_mut()
+                    .expect("a scope has begun")
+                    .insert(String::from("this"), true);
+                for method in methods {
+                    self.resolve_function(method, FunctionKind::Method)?;
+                }
+                self.end_scope();
+                self.curr_class_kind = enclosing_class_kind;
             }
+
             Statement::Expression(expression) => {
                 log!(self.logger, LogSection::ResolverFuncInfo, "Expression");
                 self.resolve_expression(expression)?;
@@ -87,6 +117,12 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
             }
             Statement::Return(expression) => {
                 log!(self.logger, LogSection::ResolverFuncInfo, "Return");
+                // TODO: interpreter is doing a similar check, remove that.
+                if self.curr_func_kind == FunctionKind::None {
+                    return Err(LoxError::Parse {
+                        message: String::from("can't return from top-level code"),
+                    });
+                }
                 if let Some(expr) = expression {
                     self.resolve_expression(expr)?;
                 }
@@ -200,16 +236,30 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
             ExpressionKind::Literal(_) => {
                 log!(self.logger, LogSection::ResolverFuncInfo, "Literal");
             }
+            ExpressionKind::This(token) => {
+                if self.curr_class_kind == ClassKind::None {
+                    return Err(LoxError::Runtime {
+                        message: String::from("cannot use 'this' outside of a class"),
+                    });
+                };
+                self.resolve_local(expression, token);
+            }
         }
         Ok(())
     }
 
-    fn resolve_function(&mut self, function: &FunctionStatement) -> ResolveResultFn {
+    fn resolve_function(
+        &mut self,
+        function: &FunctionStatement,
+        kind: FunctionKind,
+    ) -> ResolveResultFn {
         log!(
             self.logger,
             LogSection::ResolverFuncInfo,
             "resolve_function"
         );
+        let enclosingFunction = self.curr_func_kind.clone();
+        self.curr_func_kind = kind;
         self.begin_scope();
         for param in &function.parameters {
             self.declare(&param);
@@ -226,6 +276,7 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
             };
         }
         self.end_scope();
+        self.curr_func_kind = enclosingFunction;
         Ok(())
     }
 

@@ -38,16 +38,9 @@ impl Environment {
         }
     }
 
-    pub fn enclosed_by(mut self, enclosing: Rc<RefCell<Environment>>) -> Self {
+    pub fn enclose_by(mut self, enclosing: Rc<RefCell<Environment>>) -> Self {
         self.enclosing = Some(enclosing);
         self
-    }
-
-    pub fn enclose(enclosing: Rc<RefCell<Environment>>) -> Self {
-        Environment {
-            enclosing: Some(enclosing),
-            values: HashMap::new(),
-        }
     }
 
     pub fn define(&mut self, name: String, value: Value) {

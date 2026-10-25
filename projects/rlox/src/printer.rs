@@ -43,6 +43,7 @@ pub fn ast(expr: &Expression) -> String {
         ExpressionKind::Literal(v) => format!("{}", v),
         ExpressionKind::Grouping(inner) => format!("(group {})", ast(inner)),
         ExpressionKind::Variable(var) => format!("{}", var.lexeme),
+        ExpressionKind::This(_) => format!("this"),
     }
 }
 

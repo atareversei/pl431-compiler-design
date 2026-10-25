@@ -207,7 +207,12 @@ impl<'a> Interpreter<'a> {
                 self.environment
                     .borrow_mut()
                     .define(name.lexeme.to_string(), Value::Null);
-                let class = Class::new(name.lexeme.clone());
+                let mut processed_methods: HashMap<String, Function> = HashMap::new();
+                for method in methods {
+                    let function = Function::new(method.clone(), self.environment.clone());
+                    processed_methods.insert(method.name.lexeme.clone(), function);
+                }
+                let class = Class::new(name.lexeme.clone(), processed_methods);
                 self.environment
                     .borrow_mut()
                     .assign(&name.lexeme, Value::Class(Rc::new(class)))?;
@@ -665,7 +670,7 @@ impl<'a> Interpreter<'a> {
                 let value = self.evaluate_expression(object)?;
                 match value {
                     Value::Instance(instance) => {
-                        Ok(instance.borrow().get(name.lexeme.clone())?.clone())
+                        Ok(instance.borrow().clone().get(name.lexeme.clone())?.clone())
                     }
                     _ => Err(LoxError::Runtime {
                         message: String::from("only instances have properties"),
@@ -702,6 +707,14 @@ impl<'a> Interpreter<'a> {
                     "expr_variable"
                 );
                 self.lookup_variable(name, id)
+            }
+            ExpressionKind::This(token) => {
+                log!(
+                    self.logger,
+                    crate::logger::LogSection::RuntimeFuncInfoExpressions,
+                    "expr_this"
+                );
+                self.lookup_variable(token, id)
             }
         }
     }

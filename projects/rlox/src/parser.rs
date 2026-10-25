@@ -100,7 +100,7 @@ impl<'a> Parser<'a> {
             _ => self.statement(),
         }
     }
-    
+
     fn var_declaration(&mut self) -> ParseStmtResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "var_declaration");
         self.consume(TT::Identifier, String::from("expect variable name"))?;
@@ -117,7 +117,7 @@ impl<'a> Parser<'a> {
         )?;
         Ok(Statement::Var { name, initializer })
     }
-    
+
     fn function(&mut self, kind: String) -> ParseStmtResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "function");
         let func_name = self
@@ -152,7 +152,7 @@ impl<'a> Parser<'a> {
             body: Some(Box::new(body)),
         }))
     }
-    
+
     fn class(&mut self) -> ParseStmtResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "class");
         let name = self
@@ -175,7 +175,7 @@ impl<'a> Parser<'a> {
 
         Ok(Statement::Class { name, methods })
     }
-    
+
     fn statement(&mut self) -> ParseStmtResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "statement");
         match self.peek().token_type {
@@ -210,14 +210,14 @@ impl<'a> Parser<'a> {
             _ => self.expression_statement(),
         }
     }
-    
+
     fn print_statement(&mut self) -> ParseStmtResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "print_statement");
         let value = self.expression()?;
         self.consume(TT::SemiColon, String::from("expect ';' after value"))?;
         Ok(Statement::Print(value))
     }
-    
+
     fn block_statement(&mut self) -> ParseStmtResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "block_statement");
         let mut statements = vec![];
@@ -230,7 +230,7 @@ impl<'a> Parser<'a> {
         self.consume(TT::RBrace, String::from("expect '}' after block"))?;
         Ok(Statement::Block(statements))
     }
-    
+
     fn if_statement(&mut self) -> ParseStmtResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "if_statement");
         let cond = self.expression()?;
@@ -259,7 +259,7 @@ impl<'a> Parser<'a> {
             elze,
         })
     }
-    
+
     fn for_statement(&mut self) -> ParseStmtResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "for_statement");
         let mut initializer: Option<Statement> = None;
@@ -337,13 +337,13 @@ impl<'a> Parser<'a> {
 
         Ok(for_statement)
     }
-    
+
     fn break_statement(&mut self) -> ParseStmtResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "break_statement");
         self.consume(TT::SemiColon, String::from("expect ';' after statement"))?;
         Ok(Statement::Break)
     }
-    
+
     fn continue_statement(&mut self) -> ParseStmtResultFn {
         log!(
             self.logger,
@@ -353,7 +353,7 @@ impl<'a> Parser<'a> {
         self.consume(TT::SemiColon, String::from("expect ';' after statement"))?;
         Ok(Statement::Continue)
     }
-    
+
     fn return_statement(&mut self) -> ParseStmtResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "return_statement");
         let mut expression: Option<Expression> = None;
@@ -363,7 +363,7 @@ impl<'a> Parser<'a> {
         self.consume(TT::SemiColon, String::from("expected ';' after value"))?;
         Ok(Statement::Return(expression))
     }
-    
+
     fn expression_statement(&mut self) -> ParseStmtResultFn {
         log!(
             self.logger,
@@ -374,12 +374,12 @@ impl<'a> Parser<'a> {
         self.consume(TT::SemiColon, String::from("expect ';' after value"))?;
         Ok(Statement::Expression(value))
     }
-    
+
     fn expression(&mut self) -> ParseExprResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "expression");
         self.comma()
     }
-    
+
     fn comma(&mut self) -> ParseExprResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "comma");
         let mut expression = self.assignment()?;
@@ -396,7 +396,7 @@ impl<'a> Parser<'a> {
 
         Ok(expression)
     }
-    
+
     fn assignment(&mut self) -> ParseExprResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "assignment");
         let mut expression = self.ternary()?;
@@ -429,7 +429,7 @@ impl<'a> Parser<'a> {
 
         Ok(expression)
     }
-    
+
     fn ternary(&mut self) -> ParseExprResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "ternary");
         let mut expression = self.logical_or()?;
@@ -450,7 +450,7 @@ impl<'a> Parser<'a> {
 
         Ok(expression)
     }
-    
+
     fn logical_or(&mut self) -> ParseExprResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "logical_or");
         let mut expression = self.logical_and()?;
@@ -469,7 +469,7 @@ impl<'a> Parser<'a> {
         }
         Ok(expression)
     }
-    
+
     fn logical_and(&mut self) -> ParseExprResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "logical_and");
         let mut expression = self.equality()?;
@@ -489,7 +489,7 @@ impl<'a> Parser<'a> {
 
         Ok(expression)
     }
-    
+
     fn equality(&mut self) -> ParseExprResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "equality");
         let mut expression = self.comparison()?;
@@ -508,7 +508,7 @@ impl<'a> Parser<'a> {
 
         Ok(expression)
     }
-    
+
     fn comparison(&mut self) -> ParseExprResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "comparison");
         let mut expression = self.term()?;
@@ -526,7 +526,7 @@ impl<'a> Parser<'a> {
         }
         Ok(expression)
     }
-    
+
     fn term(&mut self) -> ParseExprResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "term");
         let mut expression = self.factor()?;
@@ -544,7 +544,7 @@ impl<'a> Parser<'a> {
         }
         Ok(expression)
     }
-    
+
     fn factor(&mut self) -> ParseExprResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "factor");
         let mut expression = self.unary()?;
@@ -562,7 +562,7 @@ impl<'a> Parser<'a> {
         }
         Ok(expression)
     }
-    
+
     fn unary(&mut self) -> ParseExprResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "unary");
         if self.match_token(&[TT::Minus, TT::Bang]) {
@@ -595,7 +595,7 @@ impl<'a> Parser<'a> {
         }
         self.call()
     }
-    
+
     fn finish_call(&mut self, callee: Expression) -> ParseExprResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "finish_call");
         let mut arguments: Vec<Expression> = vec![];
@@ -628,7 +628,7 @@ impl<'a> Parser<'a> {
             },
         })
     }
-    
+
     fn call(&mut self) -> ParseExprResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "call");
         let mut expression = self.primary()?;
@@ -656,7 +656,7 @@ impl<'a> Parser<'a> {
         }
         Ok(expression)
     }
-    
+
     fn primary(&mut self) -> ParseExprResultFn {
         log!(self.logger, LogSection::ParserFuncInfo, "primary");
         let token = self.advance();
@@ -694,6 +694,7 @@ impl<'a> Parser<'a> {
                 self.consume(TT::RParen, String::from("expect ')' after expression"))?;
                 kind = ExpressionKind::Grouping(Box::new(expression));
             }
+            TT::This => kind = ExpressionKind::This(token.clone()),
             TT::Identifier => {
                 kind = ExpressionKind::Variable(self.previous().clone());
             }
@@ -709,7 +710,7 @@ impl<'a> Parser<'a> {
             kind,
         })
     }
-    
+
     fn match_token(&mut self, tt: &[TT]) -> bool {
         for &t in tt {
             if self.check(t) {
@@ -719,14 +720,14 @@ impl<'a> Parser<'a> {
         }
         false
     }
-    
+
     fn check(&self, tt: TT) -> bool {
         if self.is_at_end() {
             return false;
         }
         self.peek().token_type == tt
     }
-    
+
     fn advance(&mut self) -> &Token {
         if !self.is_at_end() {
             self.current += 1;
@@ -739,15 +740,15 @@ impl<'a> Parser<'a> {
         }
         self.previous()
     }
-    
+
     fn is_at_end(&self) -> bool {
         self.peek().token_type == TT::Eof
     }
-    
+
     fn peek(&self) -> &Token {
         &self.tokens[self.current]
     }
-    
+
     fn consume(&mut self, token_type: TT, error_message: String) -> Result<&Token, LoxError> {
         if !self.match_token(&[token_type]) {
             return Err(LoxError::Parse {
@@ -756,7 +757,7 @@ impl<'a> Parser<'a> {
         }
         Ok(self.previous())
     }
-    
+
     fn previous(&self) -> &Token {
         &self.tokens[self.current - 1]
     }
@@ -925,6 +926,7 @@ mod tests {
                 left: Box::new(normalize_expression(left)),
                 right: Box::new(normalize_expression(right)),
             },
+            ExpressionKind::This(token) => ExpressionKind::This(token.clone()),
             ExpressionKind::Variable(var) => ExpressionKind::Variable(var.clone()),
         }
     }
