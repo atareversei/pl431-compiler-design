@@ -1,7 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{
-    callable::Callable,
+    callable::{Callable, CallableKind},
     error::LoxError,
     interpreter::{Interpreter, Value},
 };
@@ -9,6 +9,10 @@ use crate::{
 pub struct Clock;
 
 impl Callable for Clock {
+    fn get_kind(&self) -> CallableKind {
+        CallableKind::Function
+    }
+
     fn name(&self) -> String {
         "<native> clock".to_string()
     }

@@ -44,6 +44,7 @@ pub fn ast(expr: &Expression) -> String {
         ExpressionKind::Grouping(inner) => format!("(group {})", ast(inner)),
         ExpressionKind::Variable(var) => format!("{}", var.lexeme),
         ExpressionKind::This(_) => format!("this"),
+        ExpressionKind::Super { keyword, method } => format!("super"),
     }
 }
 

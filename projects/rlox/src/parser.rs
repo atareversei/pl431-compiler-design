@@ -952,6 +952,10 @@ mod tests {
                 left: Box::new(normalize_expression(left)),
                 right: Box::new(normalize_expression(right)),
             },
+            ExpressionKind::Super { keyword, method } => ExpressionKind::Super {
+                keyword: keyword.clone(),
+                method: method.clone(),
+            },
             ExpressionKind::This(token) => ExpressionKind::This(token.clone()),
             ExpressionKind::Variable(var) => ExpressionKind::Variable(var.clone()),
         }

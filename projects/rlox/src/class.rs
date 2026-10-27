@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
-    callable::Callable,
+    callable::{Callable, CallableKind},
     error::LoxError,
     function::Function,
     instance::Instance,
@@ -40,6 +40,10 @@ impl Class {
 }
 
 impl Callable for Class {
+    fn get_kind(&self) -> CallableKind {
+        CallableKind::Class
+    }
+
     fn arity(&self) -> usize {
         let initializer_fn = self.find_method("init".to_string());
         if let Some(initializer) = initializer_fn {

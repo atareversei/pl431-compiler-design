@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
-    callable::Callable,
+    callable::{Callable, CallableKind},
     class::Class,
     environment::Environment,
     error::LoxError,
@@ -30,7 +30,7 @@ pub enum Value {
     String(String),
     Boolean(bool),
     Null,
-    Callable(Rc<dyn Callable>),
+    Callable(Rc<dyn Callable>), // TODO: remove Callable and add enum types like Function and Class
     Class(Rc<Class>),
     Instance(Rc<RefCell<Instance>>),
 }
@@ -211,8 +211,18 @@ impl<'a> Interpreter<'a> {
                 let mut superclass_value: Value = Value::Null;
                 if let Some(superclass) = superclass {
                     superclass_value = self.evaluate_expression(superclass)?;
-                    match superclass_value {
-                        Value::Class(_) => {}
+                    println!("{:?}", superclass_value);
+                    match superclass_value.clone() {
+                        Value::Callable(callable) => {
+                            match callable.get_kind() {
+                                CallableKind::Class => {}
+                                _ => {
+                                    return Err(LoxError::Runtime {
+                                        message: String::from("superclass must be a class"),
+                                    });
+                                }
+                            };
+                        }
                         _ => {
                             return Err(LoxError::Runtime {
                                 message: String::from("superclass must be a class"),
@@ -745,6 +755,26 @@ impl<'a> Interpreter<'a> {
                     "expr_variable"
                 );
                 self.lookup_variable(name, id)
+            }
+            ExpressionKind::Super { keyword, method } => {
+                let distance = self.locals.get(&expression.id).expect("super must exist");
+                let superclass = Environment::get_at(&self.environment, distance.clone(), "super")?;
+                let object = Environment::get_at(&self.environment, distance - 1, "this")?;
+                match (superclass, object) {
+                    (Value::Class(sc), Value::Instance(o)) => {
+                        let method = sc.find_method(method.lexeme.clone());
+                        if let Some(method) = method {
+                            Ok(Value::Callable(Rc::new(method.bind(o))))
+                        } else {
+                            Err(LoxError::Runtime {
+                                message: String::from("method does not exist on superclass"),
+                            })
+                        }
+                    }
+                    _ => {
+                        unreachable!("class and object must be set properly");
+                    }
+                }
             }
             ExpressionKind::This(token) => {
                 log!(

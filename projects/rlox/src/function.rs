@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    callable::Callable,
+    callable::{Callable, CallableKind},
     environment::{self, Environment},
     error::LoxError,
     instance::Instance,
@@ -43,6 +43,10 @@ impl Function {
 }
 
 impl Callable for Function {
+    fn get_kind(&self) -> CallableKind {
+        CallableKind::Function
+    }
+
     fn name(&self) -> String {
         self.declaration.name.to_string()
     }
