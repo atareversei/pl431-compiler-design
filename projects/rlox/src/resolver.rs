@@ -81,12 +81,41 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
 
                 self.resolve_function(function, FunctionKind::Function)?;
             }
-            Statement::Class { name, methods } => {
+            Statement::Class {
+                name,
+                superclass,
+                methods,
+            } => {
                 log!(self.logger, LogSection::ResolverFuncInfo, "Class");
                 let enclosing_class_kind = self.curr_class_kind.clone();
                 self.curr_class_kind = ClassKind::Class;
                 self.declare(name);
                 self.define(name);
+
+                if let Some(superclass) = superclass {
+                    match &superclass.kind {
+                        ExpressionKind::Variable(token) => {
+                            if token.lexeme.clone() == name.lexeme.clone() {
+                                return Err(LoxError::Runtime {
+                                    message: String::from("a class cannot inherit itself"),
+                                });
+                            } else {
+                                self.resolve_expression(superclass)?;
+                                self.begin_scope();
+                                self.scopes
+                                    .last_mut()
+                                    .expect("a scope has begun")
+                                    .insert(String::from("super"), true);
+                            }
+                        }
+
+                        _ => {
+                            return Err(LoxError::Runtime {
+                                message: String::from("superclass must be an identifier"),
+                            });
+                        }
+                    };
+                }
 
                 self.begin_scope();
                 self.scopes
@@ -101,6 +130,20 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                     self.resolve_function(method, declaration)?;
                 }
                 self.end_scope();
+
+                if let Some(superclass) = superclass {
+                    match &superclass.kind {
+                        ExpressionKind::Variable(token) => {
+                            if token.lexeme.clone() == name.lexeme.clone() {
+                            } else {
+                                self.end_scope();
+                            }
+                        }
+
+                        _ => {}
+                    };
+                }
+
                 self.curr_class_kind = enclosing_class_kind;
             }
 
@@ -245,6 +288,10 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
 
             ExpressionKind::Literal(_) => {
                 log!(self.logger, LogSection::ResolverFuncInfo, "Literal");
+            }
+            ExpressionKind::Super { keyword, method } => {
+                log!(self.logger, LogSection::ResolverFuncInfo, "Super");
+                self.resolve_local(expression, keyword);
             }
             ExpressionKind::This(token) => {
                 if self.curr_class_kind == ClassKind::None {

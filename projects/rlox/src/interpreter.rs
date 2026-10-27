@@ -197,16 +197,41 @@ impl<'a> Interpreter<'a> {
                 );
                 Ok(None)
             }
-            Statement::Class { name, methods } => {
+            Statement::Class {
+                name,
+                superclass,
+                methods,
+            } => {
                 log!(
                     self.logger,
                     crate::logger::LogSection::RuntimeFuncInfoStatements,
                     "class <{:?}>",
                     name.lexeme,
                 );
+                let mut superclass_value: Value = Value::Null;
+                if let Some(superclass) = superclass {
+                    superclass_value = self.evaluate_expression(superclass)?;
+                    match superclass_value {
+                        Value::Class(_) => {}
+                        _ => {
+                            return Err(LoxError::Runtime {
+                                message: String::from("superclass must be a class"),
+                            });
+                        }
+                    }
+                }
                 self.environment
                     .borrow_mut()
                     .define(name.lexeme.to_string(), Value::Null);
+                if superclass.is_some() {
+                    let new_env = Rc::new(RefCell::new(Environment::new_enclosed(
+                        self.environment.clone(),
+                    )));
+                    self.environment = new_env;
+                    self.environment
+                        .borrow_mut()
+                        .define(String::from("super"), superclass_value.clone());
+                }
                 let mut processed_methods: HashMap<String, Function> = HashMap::new();
                 for method in methods {
                     let function = Function::new(
@@ -216,7 +241,16 @@ impl<'a> Interpreter<'a> {
                     );
                     processed_methods.insert(method.name.lexeme.clone(), function);
                 }
-                let class = Class::new(name.lexeme.clone(), processed_methods);
+                let class = Class::new(name.lexeme.clone(), superclass_value, processed_methods);
+                if superclass.is_some() {
+                    let enclosing = self
+                        .environment
+                        .borrow()
+                        .enclosing
+                        .clone()
+                        .expect("superclass has created its own environment");
+                    self.environment = enclosing;
+                }
                 self.environment
                     .borrow_mut()
                     .assign(&name.lexeme, Value::Callable(Rc::new(class)))?;

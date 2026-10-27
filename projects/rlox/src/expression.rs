@@ -51,6 +51,10 @@ pub enum ExpressionKind {
         object: Box<Expression>,
         name: Token,
     },
+    Super {
+        keyword: Token,
+        method: Token,
+    },
     This(Token),
     Variable(Token),
     Grouping(Box<Expression>),

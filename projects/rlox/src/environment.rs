@@ -8,7 +8,7 @@ use crate::{environment, error::LoxError, interpreter::Value, native::clock::Clo
 
 #[derive(Debug, Clone)]
 pub struct Environment {
-    enclosing: Option<Rc<RefCell<Environment>>>,
+    pub enclosing: Option<Rc<RefCell<Environment>>>,
     values: HashMap<String, Value>,
 }
 

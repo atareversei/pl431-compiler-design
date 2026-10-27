@@ -20,6 +20,7 @@ pub enum Statement {
     },
     Class {
         name: Token,
+        superclass: Option<Expression>,
         methods: Vec<FunctionStatement>,
     },
     For {

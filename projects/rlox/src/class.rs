@@ -11,18 +11,29 @@ use crate::{
 #[derive(Clone)]
 pub struct Class {
     name: String,
+    superclass: Value,
     methods: HashMap<String, Function>,
 }
 
 impl Class {
-    pub fn new(name: String, methods: HashMap<String, Function>) -> Self {
-        Self { name, methods }
+    pub fn new(name: String, superclass: Value, methods: HashMap<String, Function>) -> Self {
+        Self {
+            name,
+            superclass,
+            methods,
+        }
     }
 
     pub fn find_method(&self, name: String) -> Option<Function> {
         if self.methods.contains_key(&name) {
             Some(self.methods.get(&name).expect("method must exist").clone())
         } else {
+            match &self.superclass {
+                Value::Class(class) => {
+                    return class.find_method(name);
+                }
+                _ => {}
+            };
             None
         }
     }

@@ -158,7 +158,17 @@ impl<'a> Parser<'a> {
         let name = self
             .consume(TT::Identifier, String::from("expect class name"))?
             .clone();
-        self.consume(TT::LBrace, String::from("expect '{' before class body"));
+        let mut superclass: Option<Expression> = None;
+        if self.match_token(&[TT::Less]) {
+            let token = self
+                .consume(TT::Identifier, String::from("expect superclass name"))?
+                .clone();
+            superclass = Some(Expression {
+                id: self.current,
+                kind: ExpressionKind::Variable(token.clone()),
+            });
+        }
+        self.consume(TT::LBrace, String::from("expect '{' before class body"))?;
 
         let mut methods: Vec<FunctionStatement> = Vec::new();
         while !self.check(TT::RBrace) && !self.is_at_end() {
@@ -171,9 +181,13 @@ impl<'a> Parser<'a> {
             }
         }
 
-        self.consume(TT::RBrace, String::from("expect '}' after class body"));
+        self.consume(TT::RBrace, String::from("expect '}' after class body"))?;
 
-        Ok(Statement::Class { name, methods })
+        Ok(Statement::Class {
+            name,
+            superclass,
+            methods,
+        })
     }
 
     fn statement(&mut self) -> ParseStmtResultFn {
@@ -694,6 +708,18 @@ impl<'a> Parser<'a> {
                 self.consume(TT::RParen, String::from("expect ')' after expression"))?;
                 kind = ExpressionKind::Grouping(Box::new(expression));
             }
+            TT::Super => {
+                let keyword = token.clone();
+                self.consume(TT::Dot, String::from("expect '.' after 'super'"));
+                let method = self.consume(
+                    TT::Identifier,
+                    String::from("expect superclass method name"),
+                )?;
+                kind = ExpressionKind::Super {
+                    keyword,
+                    method: method.clone(),
+                };
+            }
             TT::This => kind = ExpressionKind::This(token.clone()),
             TT::Identifier => {
                 kind = ExpressionKind::Variable(self.previous().clone());
@@ -955,8 +981,13 @@ mod tests {
                     .as_ref()
                     .map(|e| Box::new(normalize_statement(e.as_ref()))),
             }),
-            Statement::Class { name, methods } => Statement::Class {
+            Statement::Class {
+                name,
+                superclass,
+                methods,
+            } => Statement::Class {
                 name: normalize_token(name),
+                superclass: superclass.as_ref().map(|e| normalize_expression(e)),
                 methods: methods.clone(),
             },
             Statement::Var { name, initializer } => match initializer {
