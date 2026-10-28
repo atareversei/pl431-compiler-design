@@ -23,7 +23,7 @@ impl Environment {
     pub fn globals() -> Self {
         let mut values = HashMap::new();
 
-        values.insert("clock".to_string(), Value::Callable(Rc::new(Clock)));
+        values.insert("clock".to_string(), Value::NativeFunction(Rc::new(Clock)));
 
         Environment {
             enclosing: None,

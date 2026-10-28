@@ -30,18 +30,10 @@ pub enum Value {
     String(String),
     Boolean(bool),
     Null,
-    Callable(Rc<dyn Callable>), // TODO: remove Callable and add enum types like Function and Class
+    Function(Rc<Function>),
+    NativeFunction(Rc<dyn Callable>),
     Class(Rc<Class>),
     Instance(Rc<RefCell<Instance>>),
-}
-
-impl Value {
-    pub fn as_callable(&self) -> Option<&dyn Callable> {
-        match self {
-            Value::Callable(callable) => Some(callable.as_ref()),
-            _ => None,
-        }
-    }
 }
 
 impl std::fmt::Debug for Value {
@@ -63,12 +55,18 @@ impl std::fmt::Debug for Value {
                 write!(f, "null")
             }
 
-            Value::Callable(_) => {
-                write!(f, "<callable>")
+            Value::Function(_) => {
+                write!(f, "<function>")
             }
+
+            Value::NativeFunction(_) => {
+                write!(f, "<native function>")
+            }
+
             Value::Class(_) => {
                 write!(f, "<class>")
             }
+
             Value::Instance(_) => {
                 write!(f, "<instance>")
             }
@@ -193,7 +191,7 @@ impl<'a> Interpreter<'a> {
                 let func = Function::new(function.clone(), self.environment.clone(), false);
                 self.environment.borrow_mut().define(
                     function.name.lexeme.to_string(),
-                    Value::Callable(Rc::new(func)),
+                    Value::Function(Rc::new(func)),
                 );
                 Ok(None)
             }
@@ -213,16 +211,7 @@ impl<'a> Interpreter<'a> {
                     superclass_value = self.evaluate_expression(superclass)?;
                     println!("{:?}", superclass_value);
                     match superclass_value.clone() {
-                        Value::Callable(callable) => {
-                            match callable.get_kind() {
-                                CallableKind::Class => {}
-                                _ => {
-                                    return Err(LoxError::Runtime {
-                                        message: String::from("superclass must be a class"),
-                                    });
-                                }
-                            };
-                        }
+                        Value::Class(_) => {}
                         _ => {
                             return Err(LoxError::Runtime {
                                 message: String::from("superclass must be a class"),
@@ -263,7 +252,7 @@ impl<'a> Interpreter<'a> {
                 }
                 self.environment
                     .borrow_mut()
-                    .assign(&name.lexeme, Value::Callable(Rc::new(class)))?;
+                    .assign(&name.lexeme, Value::Class(Rc::new(class)))?;
                 Ok(None)
             }
             Statement::For {
@@ -682,9 +671,58 @@ impl<'a> Interpreter<'a> {
                     .into_iter()
                     .map(|arg| self.evaluate_expression(arg))
                     .collect::<Result<_, _>>()?;
-                let function = match callee.as_callable() {
-                    Some(callable) => callable,
-                    None => {
+                match callee {
+                    Value::Function(function) => {
+                        if arguments.len() != function.arity() {
+                            Err(LoxError::Runtime {
+                                message: format!(
+                                    "expected {} arguments but got {}",
+                                    function.arity(),
+                                    arguments.len()
+                                ),
+                            })
+                        } else {
+                            let function_new = FunctionMetadata {
+                                state: FunctionState::Normal,
+                                name: function.name(),
+                                returned: Value::Null,
+                            };
+                            self.function_stack.push(function_new);
+                            let result = function.call(self, arguments);
+                            self.function_stack.pop();
+
+                            result
+                        }
+                    }
+
+                    Value::NativeFunction(function) => {
+                        if arguments.len() != function.arity() {
+                            return Err(LoxError::Runtime {
+                                message: format!(
+                                    "expected {} arguments but got {}",
+                                    function.arity(),
+                                    arguments.len()
+                                ),
+                            });
+                        }
+
+                        function.call(self, arguments)
+                    }
+
+                    Value::Class(class) => {
+                        if arguments.len() != class.arity() {
+                            return Err(LoxError::Runtime {
+                                message: format!(
+                                    "expected {} arguments but got {}",
+                                    class.arity(),
+                                    arguments.len()
+                                ),
+                            });
+                        } else {
+                            class.call(self, arguments)
+                        }
+                    }
+                    _ => {
                         return Err(LoxError::Runtime {
                             message: format!(
                                 "can only call functions and classes, instead called {:?}",
@@ -692,26 +730,6 @@ impl<'a> Interpreter<'a> {
                             ),
                         });
                     }
-                };
-                if arguments.len() != function.arity() {
-                    Err(LoxError::Runtime {
-                        message: format!(
-                            "expected {} arguments but got {}",
-                            function.arity(),
-                            arguments.len()
-                        ),
-                    })
-                } else {
-                    let function_new = FunctionMetadata {
-                        state: FunctionState::Normal,
-                        name: function.name(),
-                        returned: Value::Null,
-                    };
-                    self.function_stack.push(function_new);
-                    let result = function.call(self, arguments);
-                    let a = self.function_stack.pop();
-
-                    result
                 }
             }
             ExpressionKind::Get { object, name } => {
@@ -762,12 +780,15 @@ impl<'a> Interpreter<'a> {
                 let object = Environment::get_at(&self.environment, distance - 1, "this")?;
                 match (superclass, object) {
                     (Value::Class(sc), Value::Instance(o)) => {
-                        let method = sc.find_method(method.lexeme.clone());
-                        if let Some(method) = method {
-                            Ok(Value::Callable(Rc::new(method.bind(o))))
+                        let method_def = sc.find_method(method.lexeme.clone());
+                        if let Some(method) = method_def {
+                            Ok(Value::Function(Rc::new(method.bind(o))))
                         } else {
                             Err(LoxError::Runtime {
-                                message: String::from("method does not exist on superclass"),
+                                message: format!(
+                                    "method {} does not exist on superclass",
+                                    method.lexeme
+                                ),
                             })
                         }
                     }
@@ -907,6 +928,12 @@ mod tests {
     #[test]
     fn classes() {
         let result = get_result("class.rlox");
+        assert_eq!(result, Ok(()))
+    }
+
+    #[test]
+    fn inheritance() {
+        let result = get_result("inheritance.rlox");
         assert_eq!(result, Ok(()))
     }
 }

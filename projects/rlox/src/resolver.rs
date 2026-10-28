@@ -27,6 +27,7 @@ enum FunctionKind {
 enum ClassKind {
     None,
     Class,
+    SubClass,
 }
 
 pub struct Resolver<'resolver, 'interpreter> {
@@ -101,6 +102,7 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
                                 });
                             } else {
                                 self.resolve_expression(superclass)?;
+                                self.curr_class_kind = ClassKind::SubClass;
                                 self.begin_scope();
                                 self.scopes
                                     .last_mut()
@@ -291,6 +293,21 @@ impl<'resolver, 'interpreter> Resolver<'resolver, 'interpreter> {
             }
             ExpressionKind::Super { keyword, method } => {
                 log!(self.logger, LogSection::ResolverFuncInfo, "Super");
+                match &self.curr_class_kind {
+                    ClassKind::None => {
+                        return Err(LoxError::Parse {
+                            message: String::from("can't use 'super' out of a class"),
+                        });
+                    }
+                    ClassKind::Class => {
+                        return Err(LoxError::Parse {
+                            message: String::from(
+                                "can't use 'super' in a calss with no super class",
+                            ),
+                        });
+                    }
+                    ClassKind::SubClass => {}
+                };
                 self.resolve_local(expression, keyword);
             }
             ExpressionKind::This(token) => {

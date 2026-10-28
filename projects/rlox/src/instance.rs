@@ -20,7 +20,7 @@ impl Instance {
         if self.fields.contains_key(&name) {
             Ok(self.fields.get(&name).expect("field exists").clone())
         } else if let Some(method) = self.class.find_method(name.clone()) {
-            Ok(Value::Callable(Rc::new(
+            Ok(Value::Function(Rc::new(
                 method.bind(Rc::new(RefCell::new(self))),
             )))
         } else {
