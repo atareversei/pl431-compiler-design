@@ -30,8 +30,10 @@ Bytecodes are more efficient in execution due to more granular control on the in
 
 There are 2 types:
 
-- Stack-based VMs: The result is always at the top of the stack
+- Stack-based VMs: The result is always at the top of the stack, e.g. Java, JavaScript, Python
 - Register-based VMs: Set of virtual registers and the result is stored in accumulator register
+
+Most machines (physical and virtual) are mixed machines. They use stacks but they still have stack pointer registers and so on.
 
 ### AOT Compilers
 
