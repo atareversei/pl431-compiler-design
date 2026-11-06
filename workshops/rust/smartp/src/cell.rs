@@ -16,6 +16,8 @@ impl<T> Cell<T> {
     }
 
     pub fn set(&self, value: T) {
+        // SAFTEY: we know no one else is concurrently mutating self.value (because !Sync)
+        // SAFTEY: we know we are not invalidating any references, because we never give any out
         unsafe { *self.value.get() = value }
     }
 
@@ -31,6 +33,8 @@ impl<T> Cell<T> {
     where
         T: Copy,
     {
+        // SAFTEY: we know no one else is modifting this value, since only this thread
+        // can mutate (because !Sync).
         unsafe { *self.value.get() }
     }
 }
