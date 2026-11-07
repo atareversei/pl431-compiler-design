@@ -21,3 +21,11 @@ impl<T> for Cell<T> {
 ## RefCell
 
 RefCell dynamically checks the borrow rules in runtime.
+
+## Rc
+Rc (Reference counter pointer) is a pointer to some data that has been allocated on the heap and it does not let mutability. When all references are gone, the inner value is dropped as well. This makes it ideal for large strings and blobs inside program which require to be accessed by multiple data structures.
+
+## Thread-Safe Variants
+
+- RwLock for RefCell
+- Arc for Rc
